@@ -1,0 +1,311 @@
+import Display as tx;
+import System as sy;
+import Skill as sq;
+import TriggerEditor.TETools as TE;
+
+const Enemy_Group = UnitGroup(1000);
+const SummonLimit = 350;
+const EnemyLimit = 750;
+const Enemy_Amount_Normal = 4;
+const DummyUnit = 204;
+var CurEnemy = 0;
+var SummonTimer = 0;
+var GameTimer = 0;
+object MonsterList { //몬스터
+    var NameId;              //이름ID
+    var MonsterName;         //이름
+    var MonsterImage;        //이미지
+    var Unit_Stat: EUDArray; //유닛 스탯: 체력, 쉴드, 방어력, 공격력, 공격주기, 공격사거리, 이동속도
+    
+    function constructor(NameId_, MonsterName_, Unit_Stat_: EUDArray, MonsterImage_){
+        // constructor(생성자) 함수는 할당될 때 작동됨
+        this.NameId =               NameId_; //이름ID
+        this.MonsterName =          MonsterName_;
+        this.MonsterImage =         MonsterImage_;
+        this.Unit_Stat =            Unit_Stat_;
+    }
+};
+const EnemyList = EUDArray(30);
+function EnemyListInit() {
+    EnemyList[0] = MonsterList.alloc(41, Db("고블린"), [50, 0, 0, 4, 22, 32, 850], 5);
+    EnemyList[1] = MonsterList.alloc(38, Db("광신도"), [38, 0, 0, 5, 17, 96, 780], 8);
+    EnemyList[2] = MonsterList.alloc(37, Db("도적"), [102, 0, 1, 12, 10, 32, 1450], 15);
+    EnemyList[3] = MonsterList.alloc(40, Db("역병쥐"), [20, 8, 0, 8, 12, 16, 1000], 1);
+
+    EnemyList[4] = MonsterList.alloc(41, Db("좀비"), [150, 0, 2, 12, 30, 32, 1000], 9);
+    EnemyList[5] = MonsterList.alloc(38, Db("거대곰"), [220, 1, 5, 20, 35, 48, 1125], 14);
+    EnemyList[6] = MonsterList.alloc(37, Db("거대박쥐"), [400, 2, 0, 20, 18, 96, 1180], 0);
+    EnemyList[7] = MonsterList.alloc(40, Db("마도폭탄"), [50, 10, 0, 50, 0, 0, 1400], 2);
+
+    EnemyList[8] =  MonsterList.alloc(41, Db("뒤틀린늑대"), [325, 2, 3, 23, 27, 32, 1225], 49);
+    EnemyList[9] =  MonsterList.alloc(38, Db("골렘"), [450, 5, 5, 20, 30, 128, 1100], 40);
+    EnemyList[10] = MonsterList.alloc(37, Db("멸살자"), [800, 10, 20, 65, 80, 192, 1650], 43);
+    EnemyList[11] = MonsterList.alloc(40, Db("심연지기"), [1250, 50, 50, 45, 25, 48, 1300], 38);
+
+    EnemyList[12] = MonsterList.alloc(41, Db("암살자"), [500, 100, 0, 140, 22, 32, 1500], 46);
+    EnemyList[13] = MonsterList.alloc(38, Db("오우거"), [1700, 25, 85, 87, 32, 150, 1225], 70);
+    EnemyList[14] = MonsterList.alloc(37, Db("마도병사"), [2250, 150, 40, 80, 19, 128, 1245], 78);
+    EnemyList[15] = MonsterList.alloc(40, Db("신의사자"), [2000, 135, 35, 75, 22, 192, 1175], 74);
+}
+const SummonCool = [0, 240, 180, 120];
+const SummonValue = [0, 20, 30, 40];
+const Summon_UnitId = [41, 38, 37, 40];
+const Summon_Value =  [35, 35, 20, 10]; //소환 확률 0~100
+const Summonable_NormalList = EUDArray(4);
+const Player_Hero_loc = $L("Hero_P1");
+const Enemy_Summon_loc = $L("Location 13");
+const Targetloc = $L("Location 22");
+const Buffer_loc = $L("Buffer");
+const IsHeroAlive = [0, 0, 0];
+var IceTime = 5*3;
+var MoreIceTime = 0; //빙결 지속시간
+var IsIceDoT = 0;
+var IsRoira = 100; //빙결 플레이어 체크
+function EnemyInit() {
+    for (var i = 0; i < Summonable_NormalList.length; i++) {
+        Summonable_NormalList[i] = i;
+    }
+}
+
+function EnemySummon(Mode) {
+    if (SummonTimer == 0) {
+        SummonTimer = SummonCool[Mode];
+        //테스트 소환
+        var temp = 0;
+        while (true) {
+            if (CurEnemy >= EnemyLimit || temp >= Summon_Value[Mode]) break;
+            const x, y = rand()%4000, rand()%2672;
+            const Create_Dec = rand()%4; //생성방향 지정
+            if (Create_Dec == 0) setloc(Targetloc, 80, 1360 + y);
+            if (Create_Dec == 1) setloc(Targetloc, 4016, 1360 + y);
+            if (Create_Dec == 2) setloc(Targetloc, 80 + x, 1360);
+            if (Create_Dec == 3) setloc(Targetloc, 80 + x, 4016);
+            const R = rand()%4;
+            if (Summon_Value[Summonable_NormalList[R]] >= rand()%100) continue;
+            const epd = sy.SetNextUnitEPD();
+            CreateUnit(1, Summon_UnitId[Summonable_NormalList[R]], Buffer_loc, P4);
+            MoveUnit(1, "Men", P4, Buffer_loc, Targetloc);
+            if (Bring(P4, AtLeast, 1, "Men", Buffer_loc)) RemoveUnitAt(All, "Men", Buffer_loc, P4);
+            else { //문제없이 소환되면
+                Enemy_Group.add(epd); //유닛그룹에 추가
+                CurEnemy += 1;
+                temp += 1;
+            }
+        }
+        setcurpl(P4);
+        RunAIScriptAt("Send All Units on Random Suicide Missions", "Anywhere");
+    }
+    else {
+        SummonTimer -= 1;
+    }
+    GameTimer += 1;
+}
+
+function EnemyChange(Type) {
+    for (var i = 0; i < 4; i++) {
+        const List = MonsterList.cast(EnemyList[Type*4 + i]);
+        const UnitId = List.NameId;
+        //기존 유닛 제거
+        RemoveUnit(UnitId, P4);
+        //이름변경
+        settbl2(List.NameId, 0, "{:s}", List.MonsterName, encoding="UTF-8");
+        //이미지변경
+        const Offset_4 = UnitId/4;
+        const Byte_4 = UnitId%4;
+        const Offset_2 = UnitId/2;
+        const Byte_2 = (UnitId%2)*2;
+        bwrite_epd(EPD(0x6644F8) + Offset_4, Byte_4, List.MonsterImage);
+        //스탯변경
+        //체력
+        dwwrite_epd(EPD(0x662350) + UnitId, List.Unit_Stat[0]);
+        //쉴드
+        wwrite_epd(EPD(0x660E00) + Offset_2, Byte_2, List.Unit_Stat[1]);
+        //방어력
+        bwrite_epd(EPD(0x65FEC8) + Offset_4, Byte_4, List.Unit_Stat[2]);
+        //연결된 무기 ID
+        const WeaponId = bread_epd(EPD(0x6636B8) + Offset_4, Byte_4);
+        //공격력
+        wwrite_epd(EPD(0x656EB0) + Offset_2, Byte_2, List.unit_Stat[3]);
+        //공격주기
+        bwrite_epd(EPD(0x656FB8) + Offset_4, Byte_4, List.Unit_Stat[4]);
+        //공격사거리
+        dwwrite_epd(EPD(0x657470) + WeaponId, List.Unit_Stat[5]);
+        bwrite_epd(EPD(0x662DB8) + Offset_4, Byte_4, List.Unit_Stat[5] / 32); //공격사거리
+        //이동속도
+        dwwrite_epd(EPD(0x6C9EF8) + List.MonsterImage, List.Unit_Stat[6]); //최고속도
+        wwrite_epd(EPD(0x6C9C78) + Offset_2, Byte_2, List.Unit_Stat[6]/10); //가속도
+    }
+}
+
+function Evolution_Check() {
+    //5분마다 적 생성 풀 변경
+    if (GameTimer%(300*24) == 0 && GameTimer > 0) {
+        EnemyChange(GameTimer/(300*24));
+        tx.Display_EnemyUpgrade();
+    }
+}
+const Roira_Frost_Icicle = 111;
+const Roira_Frost_Icicle_WeaponId = 9;
+
+function EnemyGroup() {
+    IceTime += MoreIceTime; //추가 빙결 지속시간
+    MoreIceTime = 0; //초기화
+    //적 유닛 그룹 ExtraDb 명시화 필요함
+    // 6: 쾌속의쌍검 여럿값 7: 쾌속의쌍검피해량 8: 쾌속의쌍검타이머
+    foreach(unit : Enemy_Group.cploop) {
+        const epd = unit.epd;
+        unit.set_cp(0x64/4);
+        const UnitId = wread_cp(0, 0);
+        unit.move_cp(0x118/4);
+        const IceTimer = bread_cp(0,1);
+        unit.set_cp(0x4C/4);
+        const cp = bread_cp(0, 0);
+        foreach(dead : unit.dying) {
+            CurEnemy -= 1;
+            //빙결 상태 확인 후에 사망시 추가효과 발동하기
+            if (IceTimer > 1) {
+                if (IsIceDoT & 0x10) {
+                    unit.set_cp(0x28/4);
+                    const x, y = posread_cp(0);
+                    setloc(Targetloc, x, y);
+                    var Damage = 8;
+                    var Scale = 75;
+                    var Replay = 1;
+                    if (IsIceDoT & 0x100) {
+                        Scale += 15;
+                        Replay = 2;
+                    }
+                    if (IsIceDoT & 0x1000) Replay = 4;
+                    Damage = sy.SetWeaponDamage(IsRoira, Damage, sy.SPD, Scale, 1);
+                    sy.WeaponSetting_Damage(Roira_Frost_Icicle_WeaponId, Damage);
+                    for (var i = 0; i < Replay; i++) {
+                        const R = rand()%255;
+                        const temp = sy.SetNextUnitEPD();
+                        CreateUnit(1, Roira_Frost_Icicle, Targetloc, IsRoira);
+                        wwrite_epd(temp + 0x110/4, 0, 6);
+                        bwrite_epd(temp + 0x20/4, 1, R);
+                    }
+                }
+            }
+            if (sy.GetExtraDb(epd, 7) > 0) { 
+                //사망할 때 쾌속의 쌍검 타이머가 아직 남아있고 전염트리를 탔다면
+                const Type = maskread_epd(epd + sy.dst + 6, 0xFF0000)/65536;
+                if (Type & 0x1) {
+                    const WeaponIndex = maskread_epd(epd + sy.dst + 6, 0xFF);
+                    const TCp = maskread_epd(epd + sy.dst + 7, 0xFFFF0000)/65536;
+                    const MixedValue = sy.GetExtraDb(epd, 5);
+                    const tempepd = sy.SetNextUnitEPD();
+                    const STimer = maskread_epd(epd + sy.dst + 6, 0xFF000000)/16777216;
+                    const Damage = sy.GetExtraDb(epd, 6);
+                    const x, y = posread_epd(epd + 0x28/4); //현재위치 읽어오기
+                    setloc(Targetloc, x, y);
+                    CreateUnit(1, sq.FastKnife_Target, Targetloc, TCp);
+                    wwrite_epd(tempepd + 0x110/4, 0, 6);
+                    sy.SetExtraDb(tempepd, 0, 7);
+                    sy.SetExtraDb(tempepd, 1, WeaponIndex);
+                    sy.SetExtraDb(tempepd, 2, maskread_epd(epd + sy.dst + 6, 0xFF00)/256);
+                    sy.SetExtraDb(tempepd, 6, Damage);
+                    sy.SetExtraDb(tempepd, 7, STimer);
+                    sq.CheckingUnitEpd.add(tempepd);
+                }
+            }
+            sy.ExtraDb_Reset(epd);
+        }
+        const MaxHp = EPD(0x662350) + UnitId;
+        unit.set_cp(0x08/4);
+        const CurHp = dwread_cp(0);
+        const ToxicDamage = sy.GetExtraDb(epd, 1)*256;
+        const ToxicTimer = sy.GetExtraDb(epd, 2);
+        const WeaponIndex = maskread_epd(epd + sy.dst + 5, 0xFF);
+        if (WeaponIndex == 17) { //쾌속의쌍검 지속딜 & 특수조건 확인
+            const Timer = maskread_epd(epd + sy.dst + 7, 0xFFFF);
+            if (Timer > 0) {
+                const CondTrigger = maskread_epd(epd + sy.dst + 5, 0xFF0000)/65536;
+                if (Timer%8 == 0) {
+                    const Damage = sy.GetExtraDb(epd, 6);
+                    const x, y = posread_epd(epd + 0x28/4); //현재위치 읽어오기
+                    const TCp = maskread_epd(epd + sy.dst + 7, 0xFFFF0000)/65536;
+                    //피해 이펙트 표시
+                    sy.ScanImage_Create(cp, 24, 34, 16, x, y, Targetloc);
+                    //피해주기
+                    if (CondTrigger & 0x10) { //범위공격 추가
+                        TE.AttackGround(Targetloc, Targetloc, sq.FastKnife_Radius_Attack, DummyUnit, TCp);
+                    }
+                    const IsDead = sy.Unit_GetWound(epd, Damage, 1);
+                    if (IsDead && (CondTrigger & 0x1)) {
+                        //이 피해로 적이 죽었다면 추가 공격 발동
+                        const MixedValue = sy.GetExtraDb(epd, 5);
+                        const tempepd = sy.SetNextUnitEPD();
+                        const STimer = maskread_epd(epd + sy.dst + 5, 0xFF000000)/16777216;
+                        setloc(Targetloc, x, y);
+                        CreateUnit(1, sq.FastKnife_Target, Targetloc, TCp);
+                        wwrite_epd(tempepd + 0x110/4, 0, 6);
+                        sy.SetExtraDb(tempepd, 0, 7);
+                        sy.SetExtraDb(tempepd, 1, WeaponIndex);
+                        sy.SetExtraDb(tempepd, 2, maskread_epd(epd + sy.dst + 5, 0xFF00)/256);
+                        sy.SetExtraDb(tempepd, 6, Damage);
+                        sy.SetExtraDb(tempepd, 7, STimer);
+                        sq.CheckingUnitEpd.add(tempepd);
+                        sy.SetExtraDb(epd, 7, 0);
+                    }
+                }
+                maskwrite_epd(epd + sy.dst + 7, Timer-1, 0xFFFF);
+            }
+        }
+        if (ToxicTimer == 0) { //독데미지
+            sy.SetExtraDb(epd, 2, 24);
+            if (ToxicDamage > 0) {
+                if (ToxicDamage >= CurHp) {
+                    SetKills(sy.GetExtraDb(epd, 3), Add, 1, UnitId);
+                    unit.set_cp(0x4C/4);
+                    SetDeathsX(CurrentPlayer, SetTo, 0, 0, 0xFF00);
+                } else {
+                    unit.set_cp(0x08/4);
+                    SetDeathsX(CurrentPlayer, Subtract, ToxicDamage, 0, 0xFFFFFFFF);
+                }
+            }
+        } else {
+            sy.ExtraSubDb(epd, 2, 1);
+        }
+        if (IceTimer > 1) { //빙결 지속피해
+            if (IsIceDoT & 0x1) {
+                unit.set_cp(0x120/4);
+                const Timer = bread_cp(0,2);
+                if (Timer == 0) {
+                    if (5 >= CurHp) {
+                        SetKills(IsRoira, Add, 1, UnitId);
+                        unit.set_cp(0x4C/4);
+                        SetDeathsX(CurrentPlayer, SetTo, 0, 0, 0xFF00);
+                    } else {
+                        unit.set_cp(0x08/4);
+                        SetDeathsX(CurrentPlayer, Subtract, 5*256, 0, 0xFFFFFFFF);
+                    }
+                }
+            }
+        }
+        if (sy.GetExtraDb(epd, 4)) {
+            unit.set_cp(0x34/4);
+            SetDeathsX(CurrentPlayer, SetTo, 0, 0, 0xFFFFFFFF);
+        }
+        //빙결 지속시간 줄이기
+        if (IceTimer > IceTime) {
+            unit.set_cp(0x118/4);
+            SetDeathsX(CurrentPlayer, SetTo, IceTime*256, 0, 0xFF00);
+        }
+        //무적상태 확인 후 무적해제
+        unit.set_cp(0xDC/4);
+        if (DeathsX(CurrentPlayer, Exactly, 0x4000000, 0, 0x4000000)) {
+            SetDeathsX(CurrentPlayer, SetTo, 0, 0, 0x4000000);
+        }
+        // const OrderTimer = sy.GetExtraDb(epd, 3);
+        // const OrderTarget = sy.GetExtraDb(epd, 4);
+        // if (OrderTimer == 0) {
+        //     sy.SetExtraDb(epd, 3, 90);
+        //     const x, y = posread_epd(epd + 0x28/4);
+        //     setloc(Targetloc, x, y);
+        //     Order(UnitId, cp, Targetloc, Patrol, Player_Hero_loc);
+        // } else {
+        //     sy.ExtraSubDb(epd, 3, 1);
+        // }
+    }
+}

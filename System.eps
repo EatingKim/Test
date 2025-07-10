@@ -1,0 +1,1532 @@
+import Display as tx;
+import TriggerEditor.TETools as TE;
+
+var Num_Potion = 0;         //맵상포션수
+var Num_Supply = 0;         //맵상보급품수
+                            //둘다 최대 60개까지 존재가능
+var Controller = 0; //게임시작 설정 플레이어
+const OwnedHero = PVariable(); //플레이어 영웅 번호
+const Epd_cp = PVariable(); //플레이어 유닛 epd값
+const TempHeroEpd = EUDArray(8); //영웅epd값 임시저장공간
+
+/* 플레이어 스탯 배열 */
+const Stat_Hp = PVariable();    //플레이어 체력
+const Stat_Pm = PVariable();    //플레이어 피해감소(10~512) 기본값 256
+const Stat_Am = PVariable();    //플레이어 고정방어력(-100~400) 기본값 100
+const Stat_Hr = PVariable();    //플레이어 체력재생력(0~2000) 기본값 1000 음수로 떨어져도 체력은 떨어지지 않음
+const Stat_Sh = PVariable();    //플레이어 쉴드(0~60000) 기본값 0
+const Stat_Sm = PVariable();    //플레이어 쉴드방어력(0~250) 기본값 125
+const Stat_Sr = PVariable();    //플레이어 쉴드재생력(0~2000) 기본값 1000
+const Stat_Pa = PVariable();    //플레이어 공격력(0~1000) 기본값 500 500미만은 음수 비율%만큼 최종 데미지 계산
+const Stat_Pd = PVariable();    //플레이어 물리공격력(0~2000) 기본수치 1000
+const Stat_Md = PVariable();    //플레이어 마법공격력(0~2000) 1000미만은 음수값
+const Stat_Sd = PVariable();    //플레이어 소환공격력(0~2000)
+const Stat_Ld = PVariable();    //플레이어 행운공격력(0~2000)
+const Stat_Sp = PVariable();    //플레이어 이동속도증가량(10~1000) 기본값 100(+0%)
+const Stat_Gd = PVariable();    //플레이어 골드획득량 (10~200) 기본값 100(+0%)
+const Stat_Gc = PVariable();    //플레이어 골드생산량 5초마다 수치만큼 골드 생성 (0~200) 기본값 100(+0)
+const Stat_Lu = PVariable();    //플레이어 확률조작(0~160) 기본값 0 확률 수치만큼 2개의 선택지에서 1개 선택
+const Stat_Su = PVariable();    //플레이어 생존력(0~10) 기본값 0 사망 시 1소모하고 즉시 부활
+const Stat_Dc = PVariable();    //플레이어 할인(0~50) 기본값 0 수치%만큼 상점 아이템 할인
+const Stat_En = PVariable();    //플레이어 강인함(0~3) 기본값 0 상점 아이템의 스탯 감소치를 줄여줌 1:25% 2:50% 3:75%
+const Stat_Lb = PVariable();    //플레이어 생력폭발(0~50) 기본값 0 1초마다 %수치 확률로 15만큼의 체력을 회복합니다.
+const Stat_Dr = PVariable();    //플레이어 사망회피(0~30) 기본값 0 체력이 0이 될 때 %수치 확률로 5초간 무적이 됩니다. 20초의 쿨타임을 가집니다.
+const Stat_Da = PVariable();    //플레이어 이연격(0~25) 기본값 0 무기를 공격할 때 %수치 확률로 쿨타임이 즉시 초기화됩니다. 무기별로 3초의 쿨타임을 가집니다.
+const Stat_Rune_Open = PVariable();     //플레이어 룬의힘(0~1) 기본값 0 1이면 상점에서 룬 아이템 등장
+const Stat_Rune_Level = PVariable();    //플레이어 성장의룬(0~4) 기본값 0 5초마다 수치만큼의 무작위 스탯을 증가시킵니다.
+const Stat_Rune_Remove = PVariable();   //플레이어 파괴의룬(0~10) 기본값 0 2초마다 5칸내의 적에게 (수치*공격력)만큼 피해를 줍니다.
+const Stat_Rune_Accel = PVariable();    //플레이어 가속의룬(0~1) 기본값 0 상하좌우 한방향으로 이동할 때 이동속도가 점차 빨라집니다.
+const Stat_Rune_Life = PVariable();     //플레이어 생명의룬(0~20) 기본값 0 적을 처치할 때마다 (수치/20)%만큼의 체력을 회복합니다.
+const Stat_Rune_Shield = PVariable();   //플레이어 보호의룬(0~10) 기본값 0 피해를 입을 때 수치만큼의 쉴드를 생성합니다.
+const Stat_God_Open = PVariable();      //플레이어 신의힘 (0~1) 기본값 0 1이면 상점에서 권능 아이템 등장
+const Stat_God_Gold = PVariable();      //플레이어 황금의권능(0~1) 기본값 0 1이면 구매한 아이템 등급에 따라 추가 능력치를 얻습니다.
+const Stat_God_Life = PVariable();      //플레이어 생명의권능(0~1) 기본값 0 1이면 상점의 리롤 쿨타임이 2배 빨라집니다.
+const Stat_God_Time = PVariable();      //플레이어 시간의권능(0~1) 기본값 0 1이면 체력재생력과 쉴드재생력이 2배 더 빨리 회복됩니다.
+const Stat_God_Immotal = PVariable();   //플레이어 죽음의권능(0~1) 기본값 0 1이면 체력이 0으로 떨어졌을 때 15초간 무적상태가 됩니다. 2분의 쿨타임을 가집니다.
+
+/* 보여주기 스탯 배열 */
+const Visual_Hp = PVariable();    //플레이어 체력
+const Visual_Pm = PVariable();    //플레이어 피해감소(10~512) 기본값 256
+const Visual_Am = PVariable();    //플레이어 고정방어력(-100~400) 기본값 100
+const Visual_Hr = PVariable();    //플레이어 체력재생력(0~2000) 기본값 1000 음수로 떨어져도 체력은 떨어지지 않음
+const Visual_Sh = PVariable();    //플레이어 쉴드(0~60000) 기본값 0
+const Visual_Sm = PVariable();    //플레이어 쉴드방어력(0~250) 기본값 125
+const Visual_Sr = PVariable();    //플레이어 쉴드재생력(0~2000) 기본값 1000
+const Visual_Pa = PVariable();    //플레이어 공격력(0~1000) 기본값 500 500미만은 음수 비율%만큼 최종 데미지 계산
+const Visual_Pd = PVariable();    //플레이어 물리공격력(0~2000) 기본수치 1000
+const Visual_Md = PVariable();    //플레이어 마법공격력(0~2000) 1000미만은 음수값
+const Visual_Sd = PVariable();    //플레이어 소환공격력(0~2000)
+const Visual_Ld = PVariable();    //플레이어 행운공격력(0~2000)
+const Visual_Sp = PVariable();    //플레이어 이동속도증가량(10~1000) 기본값 100(+0%)
+const Visual_Gd = PVariable();    //플레이어 골드획득량 (10~200) 기본값 100(+0%)
+const Visual_Gc = PVariable();    //플레이어 골드생산량 5초마다 수치만큼 골드 생성 (0~200) 기본값 100(+0)
+const Visual_Lu = PVariable();    //플레이어 확률조작(0~160) 기본값 0 확률 수치만큼 2개의 선택지에서 1개 선택
+const Visual_Su = PVariable();    //플레이어 생존력(0~10) 기본값 0 사망 시 1소모하고 즉시 부활
+const Visual_Dc = PVariable();    //플레이어 할인(0~50) 기본값 0 수치%만큼 상점 아이템 할인
+const Visual_En = PVariable();    //플레이어 강인함(0~3) 기본값 0 상점 아이템의 스탯 감소치를 줄여줌 1:25% 2:50% 3:75%
+const Visual_Lb = PVariable();    //플레이어 생력폭발(0~50) 기본값 0 1초마다 %수치 확률로 15만큼의 체력을 회복합니다.
+const Visual_Dr = PVariable();    //플레이어 사망회피(0~30) 기본값 0 체력이 0이 될 때 %수치 확률로 5초간 무적이 됩니다. 20초의 쿨타임을 가집니다.
+const Visual_Da = PVariable();    //플레이어 이연격(0~25) 기본값 0 무기를 공격할 때 %수치 확률로 쿨타임이 즉시 초기화됩니다. 무기별로 3초의 쿨타임을 가집니다.
+const Visual_Rune_Open = PVariable();     //플레이어 룬의힘(0~1) 기본값 0 1이면 상점에서 룬 아이템 등장
+const Visual_Rune_Level = PVariable();    //플레이어 성장의룬(0~4) 기본값 0 5초마다 수치만큼의 무작위 스탯을 증가시킵니다.
+const Visual_Rune_Remove = PVariable();   //플레이어 파괴의룬(0~10) 기본값 0 2초마다 5칸내의 적에게 (수치*공격력)만큼 피해를 줍니다.
+const Visual_Rune_Accel = PVariable();    //플레이어 가속의룬(0~1) 기본값 0 상하좌우 한방향으로 이동할 때 이동속도가 점차 빨라집니다.
+const Visual_Rune_Life = PVariable();     //플레이어 생명의룬(0~20) 기본값 0 적을 처치할 때마다 (수치/20)%만큼의 체력을 회복합니다.
+const Visual_Rune_Shield = PVariable();   //플레이어 보호의룬(0~10) 기본값 0 피해를 입을 때 수치만큼의 쉴드를 생성합니다.
+const Visual_God_Open = PVariable();      //플레이어 신의힘 (0~1) 기본값 0 1이면 상점에서 권능 아이템 등장
+const Visual_God_Gold = PVariable();      //플레이어 황금의권능(0~1) 기본값 0 1이면 구매한 아이템 등급에 따라 추가 능력치를 얻습니다.
+const Visual_God_Life = PVariable();      //플레이어 생명의권능(0~1) 기본값 0 1이면 상점의 리롤 쿨타임이 2배 빨라집니다.
+const Visual_God_Time = PVariable();      //플레이어 시간의권능(0~1) 기본값 0 1이면 체력재생력과 쉴드재생력이 2배 더 빨리 회복됩니다.
+const Visual_God_Immotal = PVariable();   //플레이어 죽음의권능(0~1) 기본값 0 1이면 체력이 0으로 떨어졌을 때 15초간 무적상태가 됩니다. 2분의 쿨타임을 가집니다.
+
+/* 기타 스탯 */
+const Stat_CHp = PVariable();   //플레이어 현재체력
+const Stat_Neffrim_MDUp = PVariable();
+
+/* 스탯 상수 */
+const SHP = 1; //최대체력
+const SPM = 2; //피해감소량
+const SAM = 3; //고정방어력
+const SHR = 4; //체력재생력
+const SSH = 5; //쉴드
+const SSM = 6; //쉴드방어력
+const SSR = 7; //쉴드재생력
+const SPA = 8; //공격력
+const SPD = 9; //물리공격력
+const SMD = 10; //마법공격력
+const SSD = 11; //소환공격력
+const SLD = 12; //행운공격력
+const SSP = 13; //이동속도
+const SGD = 14; //골드획득량
+const SGC = 15; //골드생성
+const SLU = 16; //확률조작
+const SSU = 17; //생존력
+const SDC = 18; //할인
+const SEN = 19; //강인함
+const SLB = 20; //생력폭발
+const SDR = 21; //죽음회피
+const SDA = 22; //이연격
+const RUM = 23; //룬의힘
+const RUL = 24; //성장의룬
+const RUR = 25; //파괴의룬
+const RUA = 26; //가속의룬
+const RUF = 27; //생명의룬
+const RUS = 28; //보호의룬
+const GWM = 29; //신의권능
+const GWG = 30; //황금의권능
+const GWL = 31; //생명의권능
+const GWT = 32; //시간의권능
+const GWI = 33; //불멸의권능
+
+const MScore = [10, 12, 15, 18, 20, 22, 25, 28, 35, 40, 44, 48, 53, 55, 58, 80, 120, 144, 160]; //몬스터 골드
+const EMSore = [500, 1000, 1500, 2000]; //엘리트 골드
+const ELScore = [40, 50, 60, 70, 80]; //엔드레스 골드
+
+
+
+const StatName = [  Db("없음"),         //0
+                    Db("체력"),         //1
+                    Db("피해감소"),      //2
+                    Db("고정방어력"),       //3
+                    Db("체력재생력"),       //4
+                    Db("쉴드"),             //5
+                    Db("쉴드방어력"),       //6
+                    Db("쉴드재생력"),       //7
+                    Db("공격력"),           //8
+                    Db("물리공격력"),       //9
+                    Db("마법공격력"),       //10
+                    Db("소환공격력"),       //11
+                    Db("행운공격력"),           //12
+                    Db("이동속도"),         //13
+                    Db("골드획득량"),           //14
+                    Db("골드생성"),         //15
+                    Db("확률조작"),         //16
+                    Db("생존력"),           //17
+                    Db("할인"),         //18
+                    Db("강인함"),           //19
+                    Db("생력폭발"),         //20
+                    Db("사망회피"),         //21
+                    Db("이연격"),           //22
+                    Db("룬의힘"),
+                    Db("성장의룬"),
+                    Db("파괴의룬"),
+                    Db("가속의룬"),
+                    Db("생명의룬"),
+                    Db("보호의룬"),
+                    Db("신의권능"),
+                    Db("황금의권능"),
+                    Db("생명의권능"),
+                    Db("시간의권능"),
+                    Db("불멸의권능")
+];
+function Set_Stat_permanent(cp, Up_Type, Up_Amount);
+function Swap_AtoB(List: EUDArray, Parameter_1, Parameter_2) {
+    var member = List[Parameter_1];
+    List[Parameter_1] = List[Parameter_2];
+    List[Parameter_2] = member;
+}
+
+/* 배열 풀 관련 코드 */
+const objectN = 2000;
+const size = 8;
+const buffer = EUDArray(objectN * size);
+const offset = EUDArray(objectN);
+var remaining = objectN;
+
+function ArrayPoolinit() {
+    for(var i = 0; i < objectN; i += 1) {
+        offset[i] = 4 * size * i;
+    }
+    for (var i = 0; i < 6; i++) {
+        if (i == 0) settbl(411 + i, 0, "\x04받는피해량 \x02: \x0890\x02%");
+        else settbl(411 + i, 0, "\x04받는피해량 \x02: \x08100\x02%");
+    }
+}
+function alloc(): EUDArray {
+    remaining -= 1;
+    return buffer + offset[remaining];
+}
+function free(array) {
+    offset[remaining] = array - buffer;
+    remaining += 1;
+}
+
+function MainController_Check() { //게임 시작 결정권자 선택
+    for (var i = 0; i < 3; i++) {
+        if (Controller == i && !playerexist(i)) {
+            if (i == 2) Controller = 0;
+            else Controller += 1;
+        }
+    }
+}
+function SetNextUnitPTR(){
+    return cunitepdread_epd(EPD(0x628438))[[0]];
+}
+
+function SetNextUnitEPD(){
+    return cunitepdread_epd(EPD(0x628438))[[1]];
+}
+
+function SetNextUnitPtrEpd(){
+    return cunitepdread_epd(EPD(0x628438));
+}
+
+const extraDb = Db(1700*336); //추가 구조오프셋 장소
+const dst = (extraDb - 0x59CCA8) / 4; //구조오프셋과 추가장소 사이의 거리
+
+function SetExtraDb(epd, Offset, Amount) {
+    const xepd = epd + dst; //아잉
+    SetMemoryEPD(xepd + Offset, SetTo, Amount); //값 대입
+}
+function GetExtraDb(epd, Offset) {
+    const xepd = epd + dst; //아잉
+    return dwread_epd(xepd + Offset);
+}
+function ExtraAddDb(epd, Offset, Amount) {
+    const xepd = epd + dst; //아잉
+    SetMemoryEPD(xepd + Offset, Add, Amount); //값 대입
+}
+function ExtraSubDb(epd, Offset, Amount) {
+    const xepd = epd + dst; //아잉
+    SetMemoryEPD(xepd + Offset, Subtract, Amount); //값 대입
+}
+function ExtraDb_Reset(epd) {
+    const Usable = GetExtraDb(epd, 0);
+    for (var i = 0; i < Usable+1; i++) {
+        SetExtraDb(epd, i, 0);
+    }
+}
+
+/* 0: 유닛타겟 스킬저장용 */
+/* 1: 유닛타겟 스킬저장용 */ /* 1: 플레이어 유닛 무적시간 */
+/* 2: 적유닛 타입 */
+/* 3: 오더타임 */
+/* 4: 오더타겟 cp */
+
+function AttackGround2(
+    attackLoc: TrgLocation,
+    targetLoc: TrgLocation,
+    attackUnit: TrgUnit,
+    targetUnit: TrgUnit,
+    attackAngle, //0~255
+    player: TrgPlayer
+) {
+    if (Memory(0x628438, Exactly, 0)) return;  // avoid EUDError when CCMU
+    const aUnit = cunitepdread_epd(EPD(0x628438))[[1]];
+    CreateUnit(1, attackUnit, attackLoc, player);
+    DoActions(aUnit.AddNumber(0x110 / 4));
+    SetMemoryEPD(aUnit, Add, 4);  // aUnit + 0x110 (CUnit::removeTimer)
+
+    if (Memory(0x628438, Exactly, 0)) return;  // avoid EUDError when CCMU
+    const tunitptr, tunit = cunitepdread_epd(EPD(0x628438));
+    CreateUnit(1, targetUnit, targetLoc, player);
+    DoActions(list(
+        tunit.AddNumber(0x110 / 4),
+        aUnit.AddNumber(-((0x110 - 0x5C) / 4))
+    ));
+    SetMemoryEPD(aUnit, SetTo, tunitptr);  // aUnit + 0x5C (CUnit::targetUnit)
+    SetMemoryEPD(tunit, Add, 4);  // tunit + 0x110 (CUnit::removeTimer)
+
+    DoActions(aUnit.AddNumber(-((0x5C - 0x20) / 4)));
+    SetMemoryXEPD(aUnit, SetTo, attackAngle*256, 0xFF00);  // aUnit + 0x20 (CUnit::currentDirection1)
+
+    DoActions(aUnit.AddNumber(-((0x20 - 0x4C) / 4)));
+    SetMemoryXEPD(aUnit, SetTo, 0xA00, 0xFF00);  // order[10]=attack, 0x4D (CUnit::order)
+}
+function Unit_GetWound(epd, Damage, DeadReturn) { //사망처리가 필요하다면 리턴값 1
+    const CurHp = dwread_epd(epd + 0x08/4);
+    Damage *= 256;
+    if (Damage > CurHp) { //피해량이 현재 체력보다 높다면 사망
+        bwrite_epd(epd + 0x4C/4, 1, 0); //사망명령
+        if (DeadReturn) return 1;
+    } else { //아니라면 현재체력 고정 수치로 깍기
+        dwsubtract_epd(epd + 0x08/4, Damage);
+    }
+    return 0;
+}
+
+function WeaponSetting(WeaponId, Size, Damage, ImageNum) {
+    const Offset_2 = WeaponId/2;
+    const Offset_4 = WeaponId/4;
+    const Byte_2 = (WeaponId%2)*2;
+    const Byte_4 = WeaponId%4;
+
+    //스플범위
+    wwrite_epd(EPD(0x656888) + Offset_2, Byte_2, Size);
+    wwrite_epd(EPD(0x6570C8) + Offset_2, Byte_2, Size);
+    wwrite_epd(EPD(0x657780) + Offset_2, Byte_2, Size);
+    //피해량
+    wwrite_epd(EPD(0x656EB0) + Offset_2, Byte_2, Damage);
+    //이미지설정
+    if (ImageNum != 0) dwwrite_epd(EPD(0x656CA8) + WeaponId, ImageNum);
+}
+function WeaponImage_Change(WeaponId, ImageNum) { //무기 이미지 변경
+    dwwrite_epd(EPD(0x656CA8) + WeaponId, ImageNum);
+}
+function WeaponSetting_Damage(WeaponId, Damage) {
+    const Offset_2 = WeaponId/2;
+    const Byte_2 = (WeaponId%2)*2;
+
+    //피해량
+    wwrite_epd(EPD(0x656EB0) + Offset_2, Byte_2, Damage);
+}
+function WeaponSetting_Damage_PerAdd(WeaponId, Scale) {
+    const Offset_2 = WeaponId/2;
+    const Byte_2 = (WeaponId%2)*2;
+    const CurDamage = wread_epd(EPD(0x656EB0) + Offset_2, Byte_2);
+
+    //피해량
+    wwrite_epd(EPD(0x656EB0) + Offset_2, Byte_2, CurDamage + CurDamage*Scale/100);
+}
+function WeaponSetting_Range(UnitId, Range) {
+    const Offset_2 = UnitId/2;
+    const Offset_4 = UnitId/4;
+    const Byte_2 = (UnitId%2)*2;
+    const Byte_4 = UnitId%4;
+
+    bwrite_epd(EPD(0x662DB8) + Offset_4, Byte_4, Range); //인지거리?
+
+    const WeaponId = bread_epd(EPD(0x6636B8) + Offset_4, Byte_4);
+
+    dwwrite_epd(EPD(0x657470) + WeaponId, Range*32);
+}
+function WeaponSetting_Range_Min(UnitId, Range_Min) {
+    const Offset_2 = UnitId/2;
+    const Offset_4 = UnitId/4;
+    const Byte_2 = (UnitId%2)*2;
+    const Byte_4 = UnitId%4;
+
+    const WeaponId = bread_epd(EPD(0x6636B8) + Offset_4, Byte_4);
+
+    dwwrite_epd(EPD(0x656A18) + WeaponId, Range_Min*32);
+}
+function WeaponSetting_Radius(WeaponId, Radius) {
+    const Offset_2 = WeaponId/2;
+    const Byte_2 = (WeaponId%2)*2;
+
+    //스플범위
+    wwrite_epd(EPD(0x656888) + Offset_2, Byte_2, Radius);
+    wwrite_epd(EPD(0x6570C8) + Offset_2, Byte_2, Radius);
+    wwrite_epd(EPD(0x657780) + Offset_2, Byte_2, Radius);
+}
+function WeaponSetting_AtSpeed(WeaponId, WCool) {
+    const Offset_4 = WeaponId/4;
+    const Byte_4 = WeaponId%4;
+
+    bwrite_epd(EPD(0x656FB8) + Offset_4, Byte_4, WCool); //공격주기
+}
+function WeaponSetting_DamageTypeChange(WeaponId, ChangeType) {
+    //0: 독립형
+    //1: 폭발형
+    //2: 진동형
+    //3: 일반형
+    //4: 방어무시
+    const Offset_4 = WeaponId/4;
+    const Byte_4 = WeaponId%4;
+
+    //공격형태
+    wwrite_epd(EPD(0x657258) + Offset_4, Byte_4, ChangeType);
+}
+function WeaponSetting_TypeChange(WeaponId, ChangeType) {
+    //0: 인스턴트
+    //1: 타겟유닛으로
+    //2: 타겟위치로
+    //3: 쿠션
+    //4: 최고거리까지 뻗어나가기
+    const Offset_4 = WeaponId/4;
+    const Byte_4 = WeaponId%4;
+
+    var temp = 0;
+    if (ChangeType == 0) temp = 2;
+    if (ChangeType == 1) temp = 1;
+    if (ChangeType == 2) temp = 0;
+    if (ChangeType == 3) temp = 7;
+    if (ChangeType == 4) temp = 9;
+    //투사체타입
+    wwrite_epd(EPD(0x656670) + Offset_4, Byte_4, temp);
+}
+function WeaponSetting_ExplosionChange(WeaponId, ChangeType) {
+    //0: 기본
+    //1: 기본 스플래시
+    //2: 야마토건
+    const Offset_4 = WeaponId/4;
+    const Byte_4 = WeaponId%4;
+
+    var temp = 0;
+    if (ChangeType == 0) temp = 1;
+    if (ChangeType == 1) temp = 3;
+    if (ChangeType == 2) temp = 15;
+    //공격타입
+    bwrite_epd(EPD(0x6566F8) + Offset_4, Byte_4, temp);
+}
+function WeaponSetting_HitRadius(WeaponId, Angle) {
+    const Offset_4 = WeaponId/4;
+    const Byte_4 = WeaponId%4;
+    //발사각 맞추기
+    bwrite_epd(EPD(0x656990) + Offset_4, Byte_4, Angle);
+}
+function SummonUnit_AddShield(UnitId, ShieldAmount) {
+    //유닛에게 쉴드 추가
+    const Offset_2 = UnitId/2;
+    const Byte_2 = (UnitId%2)*2;
+    wwrite_epd(EPD(0x660E00) + Offset_2, Byte_2, ShieldAmount);
+}
+function SummonUnit_SetHp(UnitId, HpAmount) {
+    //유닛에게 체력 설정
+    dwwrite_epd(EPD(0x662350) + UnitId, HpAmount * 256);
+}
+function Check_IsHPHalf(cp) {
+    const CurHp = dwread_epd(Epd_cp[cp] + 0x08/4);
+    const MaxHp = Stat_Hp[cp]*256;
+    var temp = 0;
+    if (CurHp*2 <= MaxHp) temp = 1;
+    return temp;
+}
+function Check_IsHPBelow_Percent(cp, Per) {
+    const CurHp = dwread_epd(Epd_cp[cp] + 0x08/4);
+    const MaxHp = Stat_Hp[cp]*256;
+    var temp = 0;
+    if (MaxHp*Per/100 > CurHp) temp = 1;
+    return temp;
+}
+function HpBelow_Return_Percent(cp) {
+    const CurHp = dwread_epd(Epd_cp[cp] + 0x08/4);
+    const MaxHp = Stat_Hp[cp]*256;
+    return MaxHp * CurHp / 100;
+}
+function GetPlayerPox(cp) {
+    if (Epd_cp[cp] == 0) return 0, 0;
+    const Px, Py = posread_epd(Epd_cp[cp] + 0x28/4);
+    return Px, Py;
+}
+const ScanUnit = 33;
+function ScanImage_Create(cp, ImageNum, ScriptId, ColorId, x, y, Scanloc) { //스캔 이미지 변경
+    //이미지스크립트 272:점찍기 34:짧은이펙트
+    //색상 0:기본색 10:검정색 13:초록색 16:파란색
+    const Offset_4 = ImageNum/4;
+    const Byte_4 = ImageNum%4;
+    const Origin_ScriptId = dwread_epd(EPD(0x66EC48) + ImageNum);
+    const Origin_ColorId = bread_epd(EPD(0x669E28) + Offset_4, Byte_4);
+    //이미지 설정
+    wwrite_epd(EPD(0x666458), 0, ImageNum);
+    if (ScriptId > 0) dwwrite_epd(EPD(0x66EC48) + ImageNum, ScriptId);
+    if (Origin_ColorId != ColorId) bwrite_epd(EPD(0x669E28) + Offset_4, Byte_4, ColorId);
+    setloc(Scanloc, x, y);
+    CreateUnit(1, ScanUnit, Scanloc, cp);
+    //이미지 초기화
+    wwrite_epd(EPD(0x666458), 0, 546);
+    dwwrite_epd(EPD(0x66EC48) + ImageNum, Origin_ScriptId);
+    if (Origin_ColorId != ColorId) bwrite_epd(EPD(0x669E28) + Offset_4, Byte_4, Origin_ColorId);
+}
+var Image_Origin, Color_Origin, Script_Origin;
+function ScanImage(ImageID, Color, ScriptID) {
+    //이미지번호, 색깔, 스크립트ID
+    Image_Origin = ImageID;
+    Color_Origin = bread_epd(EPD(0x669E28 + ImageID), ImageID%4);
+    Script_Origin = dwread_epd(EPD(0x66EC48) + ImageID);
+    wwrite_epd(EPD(0x666458), 0, ImageID);
+    dwwrite_epd(EPD(0x66EC48) + ImageID, ScriptID);
+    bwrite_epd(EPD(0x669E28 + ImageID), ImageID%4, Color);
+}
+function ResetScan() {
+    wwrite_epd(EPD(0x666458), 0, 546);
+    dwwrite_epd(EPD(0x66EC48) + Image_Origin, Script_Origin);
+    bwrite_epd(EPD(0x669E28 + Image_Origin), Image_Origin%4, Color_Origin);
+}
+const Player_ShopLevel = PVariable();
+const Player_ShopExp = PVariable();
+const MAXLEVEL = 5;
+const RequestExp = [450, 1500, 4500, 8000, 15000];
+const GoldExp = [0,0,0];
+function PlayerGetEXP(cp, Amount) {
+    if (Player_ShopLevel[cp] < MAXLEVEL) {
+        Player_ShopExp[cp] += Amount;
+    }
+}
+function Shop_LevelCheck(cp) {
+    const Level = Player_ShopLevel[cp];
+    if (GoldExp[cp] >= 100) {
+        GoldExp[cp] -= 100;
+        PlayerGetEXP(cp, 8);
+    }
+    if (Player_ShopExp[cp] > RequestExp[cp]) {
+        Player_ShopExp[cp] -= RequestExp[cp];
+        Player_ShopLevel[cp] += 1;
+        tx.Display_ShopLevelUp(cp, Player_ShopLevel[cp]);
+    }
+}
+
+function SetStatInit(cp, Index) { //게임 시작시 기본 스탯 설정
+    OwnedHero[cp] = Index;
+    Epd_cp[cp] = TempHeroEpd[Index];
+    SetExtraDb(Epd_cp[cp], 0, 10);
+
+    Stat_Hp[cp] = 150;
+    Stat_Pm[cp] = 256;
+    Stat_Am[cp] = 100;
+    Stat_Hr[cp] = 1000;
+    Stat_Sh[cp] = 0;
+    Stat_Sm[cp] = 125;
+    Stat_Sr[cp] = 1000;
+    Stat_Pa[cp] = 500;
+    Stat_Pd[cp] = 1000;
+    Stat_Md[cp] = 1000;
+    Stat_Sd[cp] = 1000;
+    Stat_Ld[cp] = 1000;
+    Stat_Sp[cp] = 100;
+    Stat_Gd[cp] = 100;
+    Stat_Gc[cp] = 100;
+    Stat_Lu[cp] = 0;
+    Stat_Su[cp] = 0;
+    Stat_Dc[cp] = 0;
+    Stat_En[cp] = 0;
+    Stat_Rune_Open[cp] = 0;
+    Stat_Rune_Level[cp] = 0;
+    Stat_Rune_Remove[cp] = 0;
+    Stat_Rune_Accel[cp] = 0;
+    Stat_Rune_Life[cp] = 0;
+    Stat_Rune_Shield[cp] = 0;
+    Stat_God_Open[cp] = 0;
+    Stat_God_Gold[cp] = 0; 
+    Stat_God_Life[cp] = 0;
+    Stat_God_Time[cp] = 0;
+    Stat_God_Immotal[cp] = 0;
+    switch (Index) {
+        case 0: //전사
+            Stat_Hp[cp] += 20;
+            Set_Stat_permanent(cp, SPM, 25); //받는 피해량
+            Set_Stat_permanent(cp, SHR, 25); //체력재생
+            break;
+        case 1: //사냥꾼
+            Stat_Hp[cp] -= 20;
+            Set_Stat_permanent(cp, SPD, 3); //물리공격력
+            Set_Stat_permanent(cp, SSP, 40); //이동속도
+            break;
+        case 2: //원소술사
+            Stat_Hp[cp] -= 50;
+            Set_Stat_permanent(cp, SSR, 10); //쉴드재생력
+            Stat_Neffrim_MDUp[cp] = 1;
+            break;
+        case 3: //빙결법사
+            Stat_Hp[cp] += 20;
+            Set_Stat_permanent(cp, SAM, 2); //고정방어력
+            Set_Stat_permanent(cp, SHR, 8); //체력재생력
+            Set_Stat_permanent(cp, SGC, 10); //골드생성
+            break;
+        case 4: //도박꾼
+            Set_Stat_permanent(cp, SLU, 40); //확률조작
+            Set_Stat_permanent(cp, SSP, 15); //이동속도
+            break;
+        case 5: //불멸자
+            Set_Stat_permanent(cp, SLB, 25); //생력폭발
+            break;
+    
+        default:
+            break;
+    }
+    Set_Stat_permanent(cp, SHP, 0);
+    Set_Stat_permanent(cp, SPM, 0);
+    Set_Stat_permanent(cp, SAM, 0);
+    Set_Stat_permanent(cp, SHR, 0);
+    Set_Stat_permanent(cp, SSH, 0);
+    Set_Stat_permanent(cp, SSM, 0);
+    Set_Stat_permanent(cp, SSR, 0);
+    Set_Stat_permanent(cp, SPA, 0);
+    Set_Stat_permanent(cp, SPD, 0);
+    Set_Stat_permanent(cp, SMD, 0);
+    Set_Stat_permanent(cp, SSD, 0);
+    Set_Stat_permanent(cp, SLD, 0);
+    Set_Stat_permanent(cp, SSP, 0);
+    Set_Stat_permanent(cp, SGD, 0);
+    Set_Stat_permanent(cp, SGC, 0);
+    Set_Stat_permanent(cp, SLU, 0);
+    Set_Stat_permanent(cp, SSU, 0);
+    Set_Stat_permanent(cp, SDC, 0);
+    Set_Stat_permanent(cp, SEN, 0);
+    Set_Stat_permanent(cp, RUM, 0);
+    Set_Stat_permanent(cp, RUL, 0);
+    Set_Stat_permanent(cp, RUR, 0);
+    Set_Stat_permanent(cp, RUA, 0);
+    Set_Stat_permanent(cp, RUF, 0);
+    Set_Stat_permanent(cp, RUS, 0);
+    Set_Stat_permanent(cp, GWM, 0);
+    Set_Stat_permanent(cp, GWG, 0);
+    Set_Stat_permanent(cp, GWL, 0);
+    Set_Stat_permanent(cp, GWT, 0);
+    Set_Stat_permanent(cp, GWI, 0);
+    settblf(411 + OwnedHero[cp], 0, "\x04받는피해량 \x02: \x08{}\x02%", (Stat_Pm[cp]*100)/256);
+}
+
+function ItemStatSetting(cp, StatList: EUDArray, StatAmount: EUDArray, ListLength) {
+    for (var i = 0; i < ListLength; i++) {
+        var Amount = StatAmount[i];
+        if (Stat_En[cp] > 0) {
+            if (Amount > 0x80000000) {
+                Amount = - Amount;
+                Amount = Amount * (4 - Stat_En[cp]) / 4;
+                Amount = -Amount;
+            }
+        }
+        Set_Stat_permanent(cp, StatList[i], Amount);
+    }
+}
+
+/* 콜백 관련 함수 */
+function Callbuff(cp, Type, Amount, timer);
+
+var executorHead, executorTail; //수정하지마
+//스탯 일시 증감용 콜백
+object Executor {
+    var next: selftype;  // 다음에 실행할 콜백 함수
+    var cp; //플레이어 변수 (0~2)
+    var type; //스탯 변수 1:체력 2:체력재생량 3:방어력 4:절대방어력 5:마법공격력 6:물리공격력 7:소환공격력 8:이동속도증가량 9:골드획득량 10:쉴드
+    var Amount; //스탯 변화량 1~49 음수 50~ 양수
+    var timer;  // 타이머 변수. 0에서 시작해서 매 프레임마다 1씩 증가함.
+    var Tmax;
+    var callback: EUDFuncPtr(1, 1);  // 실제로 실행할 함수
+    // 그 외에도 데이터를 추가로 선언해도 됨
+};
+
+// 콜백 함수 추가하기
+function addExecutor_Stat(cp, Up_Type, Up_Amount, Tmax, callback: EUDFuncPtr(1, 1)) {
+    const e = Executor.alloc();
+    e.callback = callback;
+    e.timer = 0;  // 처음 등록하면 타이머 0 부터 시작
+    e.cp = cp;
+    e.type = Up_Type;
+    e.Amount = Up_Amount;
+    e.Tmax = Tmax;
+
+
+    if (!executorHead) executorHead = e;
+    if (executorTail) Executor.cast(executorTail).next = e;
+    executorTail = e;
+    e.next = 0;
+}
+
+// 모든 콜백 함수들 실행하는 함수. 항상 1번만 호출하세요.
+function runExecutor_Stat() {
+    var executor = executorHead;
+    var ePrev = 0;
+
+    while(executor) {
+        const e = Executor.cast(executor);
+        const ret = e.callback(e);
+        const eNext = e.next;
+
+        if(!ret) {
+            if (e == executorTail) executorTail = ePrev;
+            if (ePrev) Executor.cast(ePrev).next = eNext;
+            else executorHead = eNext;
+            Executor.free(e);
+            executor = eNext;
+        }
+        else {
+            e.timer += 1;  // 타이머 증가   
+            ePrev = executor;
+            executor = eNext;
+        }
+    }
+}
+function Set_Stat_temp(e: Executor);
+
+/* 함수 목록 */
+
+function Callbuff(cp, Type, Amount, timer) {
+    addExecutor_Stat(cp, Type, Amount, timer*24, Set_Stat_temp);
+}
+function Set_Stat_permanent(cp, Up_Type, Up_Amount) {
+    var sign = 0; // 0 양수 1 음수
+    var Offset, Byte;
+    var Max_Amount;
+    switch (Up_Type) {
+        case SHP: //체력
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                Stat_Hp[cp] += Up_Amount;
+            } else {
+                if (Stat_Hp[cp] < Up_Amount) Stat_Hp[cp] = 1;
+                else Stat_Hp[cp] -= Up_Amount;
+            }
+            Visual_Hp[cp] = Stat_Hp[cp];
+            //유닛 체력 즉시 수정
+            dwwrite_epd(EPD(0x662350) + OwnedHero[cp], Stat_Hp[cp] * 256);
+            break;
+        case SPM: //피해감소량 증가는 안좋은 것 감소는 좋은 것. 그러므로 역으로 계산
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Pm[cp] - Up_Amount < 10) Stat_Pm[cp] = 10;
+                else Stat_Pm[cp] -= Up_Amount;
+            } else {
+                if (Stat_Pm[cp] + Up_Amount >= 512) Stat_Pm[cp] = 512;
+                else Stat_Pm[cp] += Up_Amount;
+            }
+            if (Stat_Pm[cp] >= 256) { //양수 계열일 때
+                Visual_Pm[cp] = 100 - ((Stat_Pm[cp]*100)/256);
+            } else { //음수 계열일 때
+                Visual_Pm[cp] = -(((Stat_Pm[cp]*100)/256) - 100);
+            }
+            SetMemory(0x515BB4 + 4*cp, SetTo, Stat_Pm[cp]); //진동형 무기(적군 무기)
+            //텍스트 수정
+            settblf(411 + OwnedHero[cp], 0, "\x04받는피해량 \x02: \x08{}\x02%", (Stat_Pm[cp]*100)/256);
+            break;
+        case SAM: //고정방어력 기본값 100 최소 0 최대 500
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Am[cp] + Up_Amount >= 500) Stat_Am[cp] = 500;
+                else Stat_Am[cp] += Up_Amount;
+            } else {
+                if (Stat_Am[cp] < Up_Amount) Stat_Am[cp] = 0;
+                else Stat_Am[cp] -= Up_Amount;
+            }
+            Visual_Am[cp] = Stat_Am[cp];
+            Offset = OwnedHero[cp]/4;
+            Byte = OwnedHero[cp]%4;
+            if (Stat_Am[cp] > 255) {
+                const temp = Stat_Am[cp] - 255;
+                bwrite_epd(EPD(0x65FEC8) + Offset, Byte, 255); //기본 방어력 설정
+                bwrite_epd(EPD(0x58D2B0 + 46*cp) + Offset, (46*cp)%4 + Byte, temp); //추가 방어력 설정
+            } else {
+                bwrite_epd(EPD(0x65FEC8) + Offset, Byte, Stat_Am[cp]); //기본 방어력 설정
+            }
+            break;
+        case SHR: //체력재생력 기본값 1000 최소치 0 최대치 2000
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Hr[cp] + Up_Amount >= 2000000) Stat_Hr[cp] = 2000000;
+                else Stat_Hr[cp] += Up_Amount;
+            } else {
+                if (Stat_Hr[cp] < Up_Amount) Stat_Hr[cp] = 0;
+                else Stat_Hr[cp] -= Up_Amount;
+            } 
+            if (Stat_Hr[cp] >= 1000) {
+                Visual_Hr[cp] = Stat_Hr[cp] - 1000;
+            } else {
+                Visual_Hr[cp] = -(1000 - Stat_Hr[cp]);
+            }
+            break;
+        case SSH: //현재쉴드 기본값 0 최소치 0 최대치 60000
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Sh[cp] + Up_Amount >= 2000000) Stat_Sh[cp] = 2000000;
+                else Stat_Sh[cp] += Up_Amount;
+            } else {
+                if (Stat_Sh[cp] < Up_Amount) Stat_Sh[cp] = 0;
+                else Stat_Sh[cp] -= Up_Amount;
+            }
+            Visual_Sh[cp] = Stat_Sh[cp];
+            Offset = OwnedHero[cp]/2;
+            Byte = (OwnedHero[cp]%2)*2;
+            wwrite_epd(EPD(0x660E00) + Offset, Byte, Stat_Sh[cp]);
+            if (Epd_cp[cp] > 0) dwwrite_epd(Epd_cp[cp] + 0x60/4, Stat_Sh[cp]*256);
+            break;
+        case SSM: //쉴드방어력 기본값 125 최소치 0 최대치 250
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Sm[cp]  + Up_Amount >= 250) Stat_Sm[cp] = 250;
+                else Stat_Sm[cp] += Up_Amount;
+            } else {
+                if (Stat_Sm[cp] < Up_Amount) Stat_Sm[cp] = 0;
+                else Stat_Sm[cp] -= Up_Amount;
+            }
+            Visual_Sm[cp] = Stat_Sm[cp];
+            Offset = 15/4;
+            Byte = 15%4;
+            bwrite_epd(EPD(0x58D2B0 + 46*cp) + Offset, (46*cp)%4 + Byte, Stat_Sm[cp]); //추가 방어력 설정
+            break;
+        case SSR: //쉴드재생력 기본값 1000 최소치 0 최대치 2000 1천미만이면 쉴드 감소
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Sr[cp]  + Up_Amount >= 2000) Stat_Sr[cp] = 2000;
+                else Stat_Sr[cp] += Up_Amount;
+            } else {
+                if (Stat_Sr[cp] < Up_Amount) Stat_Sr[cp] = 0;
+                else Stat_Sr[cp] -= Up_Amount;
+            }
+            if (Stat_Sr[cp] >= 1000) {
+                Visual_Sr[cp] = Stat_Sr[cp] - 1000;
+            } else {
+                Visual_Sr[cp] = -(1000 - Stat_Sr[cp]);
+            }
+            break;
+        case SPA: //공격력 기본값 500 최소치 0 최대치 1000 500뺸 값에 %수치로 계산
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Pa[cp]  + Up_Amount >= 2000) Stat_Pa[cp] = 2000;
+                else Stat_Pa[cp] += Up_Amount;
+            } else {
+                if (Stat_Pa[cp] < Up_Amount) Stat_Pa[cp] = 0;
+                else Stat_Pa[cp] -= Up_Amount;
+            }
+            if (Stat_Pa[cp] >= 500) {
+                Visual_Pa[cp] = Stat_Pa[cp] - 500;
+            } else {
+                Visual_Pa[cp] = -(500 - Stat_Pa[cp]);
+            }
+            break;
+        case SPD: //물리공격력 기본값 1000 최소치 0 최대치 3000 1000뺸 값에 +수치로 계산
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Pd[cp] + Up_Amount >= 2000) Stat_Pd[cp] = 2000;
+                else Stat_Pd[cp] += Up_Amount;
+            } else {
+                if (Stat_Pd[cp] < Up_Amount) Stat_Pd[cp] = 0;
+                else Stat_Pd[cp] -= Up_Amount;
+            }
+            if (Stat_Pd[cp] >= 1000) {
+                Visual_Pd[cp] = Stat_Pd[cp] - 1000;
+            } else {
+                Visual_Pd[cp] = -(1000 - Stat_Pd[cp]);
+            }
+            break;
+        case SMD: //마법공격력 기본값 1000 최소치 0 최대치 3000 1000뺸 값에 +수치로 계산
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Md[cp]  + Up_Amount >= 2000) Stat_Md[cp] = 2000;
+                else Stat_Md[cp] += Up_Amount;
+            } else {
+                if (Stat_Md[cp] < Up_Amount) Stat_Md[cp] = 0;
+                else Stat_Md[cp] -= Up_Amount;
+            }
+            if (Stat_Md[cp] >= 1000) {
+                Visual_Md[cp] = Stat_Md[cp] - 1000;
+            } else {
+                Visual_Md[cp] = -(1000 - Stat_Md[cp]);
+            }
+            break;
+        case SSD: //소환공격력 기본값 1000 최소치 0 최대치 3000 1000뺸 값에 +수치로 계산
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Sd[cp]  + Up_Amount >= 2000) Stat_Sd[cp] = 2000;
+                else Stat_Sd[cp] += Up_Amount;
+            } else {
+                if (Stat_Sd[cp] < Up_Amount) Stat_Sd[cp] = 0;
+                else Stat_Sd[cp] -= Up_Amount;
+            }
+            if (Stat_Sd[cp] >= 1000) {
+                Visual_Sd[cp] = Stat_Sd[cp] - 1000;
+            } else {
+                Visual_Sd[cp] = -(1000 - Stat_Sd[cp]);
+            }
+            break;
+        case SLD: //행운공격력 기본값 1000 최소치 0 최대치 3000 1000뺸 값에 +수치로 계산
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Ld[cp]  + Up_Amount >= 2000) Stat_Ld[cp] = 2000;
+                else Stat_Ld[cp] += Up_Amount;
+            } else {
+                if (Stat_Ld[cp] < Up_Amount) Stat_Ld[cp] = 0;
+                else Stat_Ld[cp] -= Up_Amount;
+            }
+            if (Stat_Ld[cp] >= 1000) {
+                Visual_Ld[cp] = Stat_Ld[cp] - 1000;
+            } else {
+                Visual_Ld[cp] = -(1000 - Stat_Ld[cp]);
+            }
+            break;
+        case SSP: //이동속도 기본값 100 최소치 10 최대치 3000 %수치만큼 계산
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Sp[cp]  + Up_Amount >= 2000) Stat_Sp[cp] = 2000;
+                else Stat_Sp[cp] += Up_Amount;
+            } else {
+                if (Stat_Sp[cp] < Up_Amount) Stat_Sp[cp] = 0;
+                else Stat_Sp[cp] -= Up_Amount;
+            }
+            if (Epd_cp[cp] > 0) {
+                dwwrite_epd(Epd_cp[cp] + 0x34/4, Stat_Sp[cp]*10);
+                dwwrite_epd(Epd_cp[cp] + 0x48/4, Stat_Sp[cp]);
+            }
+            Visual_Sp[cp] = Stat_Sp[cp];
+            break;
+        case SGD: //골드획득량 기본값 100 최소치 10 최대치 200 %수치만큼 계산
+            if (Up_Amount >= 0x80000000) { //음수 계산
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Gd[cp]  + Up_Amount >= 200) Stat_Gd[cp] = 200;
+                else Stat_Gd[cp] += Up_Amount;
+            } else {
+                if (Stat_Gd[cp] + 10 < Up_Amount) Stat_Gd[cp] = 10;
+                else Stat_Gd[cp] -= Up_Amount;
+            }
+            if (Stat_Gd[cp] >= 100) {
+                Visual_Gd[cp] = Stat_Gd[cp] - 100;
+            } else {
+                Visual_Gd[cp] = -(100 - Stat_Gd[cp]);
+            }
+            break;
+        case SGC: //골드생산량 기본값 0 최소치 0 최대치 500 5초마다 수치만큼 골드 생산
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Gc[cp]  + Up_Amount >= 500) Stat_Gc[cp] = 500;
+                else Stat_Gc[cp] += Up_Amount;
+            } else {
+                if (Stat_Gc[cp] < Up_Amount) Stat_Gc[cp] = 0;
+                else Stat_Gc[cp] -= Up_Amount;
+            }
+            if (Stat_Gc[cp] >= 100) {
+                Visual_Gc[cp] = Stat_Gc[cp] - 100;
+            } else {
+                Visual_Gc[cp] = -(100 - Stat_Gc[cp]);
+            }
+            break;
+        case SLU: //확률조작 기본값 0 최소치 0 최대치 160 뽑기를 2번할 확률
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            Max_Amount = 160;
+            if (OwnedHero[cp] == 4) Max_Amount += 40;
+            if (sign == 0) {
+                if (Stat_Lu[cp] + Up_Amount >= Max_Amount) Stat_Lu[cp] = Max_Amount;
+                else Stat_Lu[cp] += Up_Amount;
+            } else {
+                if (Stat_Lu[cp] < Up_Amount) Stat_Lu[cp] = 0;
+                else Stat_Lu[cp] -= Up_Amount;
+            }
+            Visual_Lu[cp] = Stat_Lu[cp];
+            break;
+        case SDC: //생존력 기본값 0 최소치 0 최대치 10 죽으면 즉시 부활
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Dc[cp]  + Up_Amount >= 75) Stat_Dc[cp] = 75;
+                else Stat_Dc[cp] += Up_Amount;
+            } else {
+                if (Stat_Dc[cp] < Up_Amount) Stat_Dc[cp] = 0;
+                else Stat_Dc[cp] -= Up_Amount;
+            }
+            Visual_Su[cp] = Stat_Su[cp];
+            break;
+        case SEN: //강인함 기본값 0 최대치 2 감소없음? 상점 아이템의 감소 수치를 줄여줌 1~3 25~75%
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_En[cp]  + Up_Amount >= 3) Stat_En[cp] = 3;
+                else Stat_En[cp] += Up_Amount;
+            } else {
+                if (Stat_En[cp] < Up_Amount) Stat_En[cp] = 0;
+                else Stat_En[cp] -= Up_Amount;
+            }
+            Visual_En[cp] = Stat_En[cp];
+            break;
+        case SLB: //생력폭발 기본값 0 최대치 50 감소있음? 1초마다 %수치 확률로 15만큼의 체력을 회복합니다.
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            Max_Amount = 50;
+            if (OwnedHero[cp] == 5) Max_Amount += 25;
+            if (sign == 0) {
+                if (Stat_Lb[cp]  + Up_Amount >= Max_Amount) Stat_Lb[cp] = Max_Amount;
+                else Stat_Lb[cp] += Up_Amount;
+            } else {
+                if (Stat_Lb[cp] < Up_Amount) Stat_Lb[cp] = 0;
+                else Stat_Lb[cp] -= Up_Amount;
+            }
+            Visual_Lb[cp] = Stat_Lb[cp];
+            break;
+        case SDR: //사망회피 기본값 0 최대치 30 감소있음? 체력이 0이 될 때 %수치 확률로 5초간 무적이 됩니다. 20초의 쿨타임을 가집니다.
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Dr[cp]  + Up_Amount >= 30) Stat_Dr[cp] = 30;
+                else Stat_Dr[cp] += Up_Amount;
+            } else {
+                if (Stat_Dr[cp] < Up_Amount) Stat_Dr[cp] = 0;
+                else Stat_Dr[cp] -= Up_Amount;
+            }
+            Visual_Dr[cp] = Stat_Dr[cp];
+            break;
+        case SDA: //이연격 기본값 0 최대치 25 감소있음? 무기를 공격할 때 %수치 확률로 쿨타임이 즉시 초기화됩니다. 무기별로 3초의 쿨타임을 가집니다.
+            if (Up_Amount >= 0x80000000) {
+                sign = 1;
+                Up_Amount = -Up_Amount;
+            }
+            if (sign == 0) {
+                if (Stat_Da[cp]  + Up_Amount >= 25) Stat_Da[cp] = 25;
+                else Stat_Da[cp] += Up_Amount;
+            } else {
+                if (Stat_Da[cp] < Up_Amount) Stat_Da[cp] = 0;
+                else Stat_Da[cp] -= Up_Amount;
+            }
+            Visual_Da[cp] = Stat_Da[cp];
+            break;
+        case RUM: //이 이후의 스탯들은 쓸지 말지 미정
+            Stat_Rune_Open[cp] += Up_Amount;
+            Visual_Rune_Open[cp] = Stat_Rune_Open[cp];
+            break;
+        case RUL:
+            Stat_Rune_Level[cp] += Up_Amount;
+            Visual_Rune_Level[cp] = Stat_Rune_Level[cp];
+            break;
+        case RUR:
+            Stat_Rune_Remove[cp] += Up_Amount;
+            Visual_Rune_Remove[cp] = Stat_Rune_Remove[cp];
+            break;
+        case RUA:
+            Stat_Rune_Accel[cp] += Up_Amount;
+            Visual_Rune_Accel[cp] = Stat_Rune_Accel[cp];
+            break;
+        case RUF:
+            Stat_Rune_Life[cp] += Up_Amount;
+            Visual_Rune_Life[cp] = Stat_Rune_Life[cp];
+            break;
+        case RUS:
+            Stat_Rune_Shield[cp] += Up_Amount;
+            Visual_Rune_Shield[cp] = Stat_Rune_Shield[cp];
+            break;
+        case GWM:
+            Stat_God_Open[cp] = Up_Amount;
+            Visual_God_Open[cp] = Stat_God_Open[cp];
+            break;
+        case GWG:
+            Stat_God_Gold[cp] += Up_Amount;
+            Visual_God_Gold[cp] = Stat_God_Gold[cp];
+            break;
+        case GWL:
+            Stat_God_Life[cp] += Up_Amount;
+            Visual_God_Life[cp] = Stat_God_Life[cp];
+            break;
+        case GWT:
+            Stat_God_Time[cp] += Up_Amount;
+            Visual_God_Time[cp] = Stat_God_Time[cp];
+            break;
+        case GWI:
+            Stat_God_Immotal[cp] += Up_Amount;
+            Visual_God_Immotal[cp] = Stat_God_Immotal[cp];
+            break;
+        default:
+            break;
+    }
+}
+function SetWeaponDamage(cp, OriginDamage, Type, Scale, IsNeedPa) { //Scale 100배
+    var Amount = 0;
+    if (Type == SPD) Amount = Stat_Pd[cp]; //물리공격력 읽어오기
+    else if (Type == SMD) Amount = Stat_Md[cp]; //마법공격력 읽어오기
+    else if (Type == SSD) Amount = Stat_Sd[cp]; //소환공격력 읽어오기
+    else if (Type == SLD) Amount = Stat_Ld[cp]; //행운공격력 읽어오기
+    if (Amount > 1000) OriginDamage += Scale * (Amount - 1000) / 100; //양수라면 곱연산
+    else if (Amount < 1000) { //음수라면 기본피해량에 합연산
+        Scale = 0;
+        var tempAmount = 1000 - Amount;
+        if (tempAmount > OriginDamage) OriginDamage = 0; //마이너스 값이 기본 피해량보다 낮으면 0
+        else OriginDamage -= tempAmount;
+    }
+    if (!IsNeedPa) return OriginDamage; //공격력 %계산 필요 없으면 패스
+    var temp = 100;
+    if (Stat_Pa[cp] > 500) temp += Stat_Pa[cp] - 500;
+    else if (Stat_Pa[cp] < 500) temp -= 500 - Stat_Pa[cp];
+    return OriginDamage*temp/100;
+}
+function SetWeaponDamage_DoubleScale(cp, OriginDamage, Type_1, Scale_1, Type_2, Scale_2, IsNeedPa) { //Scale 100배
+    var Amount_1, Amount_2 = 0, 0;
+    if (Type_1 == SPD) Amount_1 = Stat_Pd[cp]; //물리공격력 읽어오기
+    else if (Type_1 == SMD) Amount_1 = Stat_Md[cp]; //마법공격력 읽어오기
+    else if (Type_1 == SSD) Amount_1 = Stat_Sd[cp]; //소환공격력 읽어오기
+    else if (Type_1 == SLD) Amount_1 = Stat_Ld[cp]; //행운공격력 읽어오기
+    if (Type_2 == SPD) Amount_2 = Stat_Pd[cp]; //물리공격력 읽어오기
+    else if (Type_2 == SMD) Amount_2 = Stat_Md[cp]; //마법공격력 읽어오기
+    else if (Type_2 == SSD) Amount_2 = Stat_Sd[cp]; //소환공격력 읽어오기
+    else if (Type_2 == SLD) Amount_2 = Stat_Ld[cp]; //행운공격력 읽어오기
+    var SumAmount = Amount_1 + Amount_2;
+    if (SumAmount > 2000) OriginDamage += Scale_1 * (SumAmount - 2000) / 100; //양수라면 곱연산
+    else if (SumAmount < 2000) { //음수라면 기본피해량에 합연산
+        Scale_1 = 0;
+        var tempAmount = 2000 - SumAmount;
+        if (tempAmount > OriginDamage) OriginDamage = 0; //마이너스 값이 기본 피해량보다 낮으면 0
+        else OriginDamage -= tempAmount;
+    }
+    if (!IsNeedPa) return OriginDamage; //공격력 %계산 필요 없으면 패스
+    var temp = 100;
+    if (Stat_Pa[cp] > 500) temp += Stat_Pa[cp] - 500;
+    else if (Stat_Pa[cp] < 500) temp -= 500 - Stat_Pa[cp];
+    return OriginDamage*temp/100;
+}
+
+function Set_Stat_temp(e: Executor) {
+    /*
+    e.timer
+    e.cp
+    e.type
+    e.Amount
+    e.Tmax
+     */
+    var Condition = 0;
+    if (e.timer == 0) {
+        Set_Stat_permanent(e.cp, e.type, e.Amount);
+    }
+    else if (e.timer == e.Tmax) {
+        var temp = -e.Amount;
+        Set_Stat_permanent(e.cp, e.type, temp);
+        return false;
+    }
+    return true;
+}
+
+function ViewHeroInfo(epd, UnitId) {
+    for (var i = 0; i < 8; i++) {
+        if (UnitId == i) {
+            //영웅 정보
+            //그냥 체력 쉴드만 넣자
+        }
+    }
+}
+
+function HeroCreation(loc, Index) {
+    TempHeroEpd[Index] = SetNextUnitEPD();
+    CreateUnit(1, Index, loc, P5);
+}
+
+
+function SoloCheck() {
+    var temp = 0;
+    var cp = 0;
+    for (var i = 0; i < 3; i++) {
+        if (playerexist(i)) {
+            temp++;
+            cp = i;
+        }
+    }
+    if (temp == 1) {
+
+    }
+    return temp;
+}
+const Sh_Stack = PVariable();
+function Player_Sh_Heal(cp, Amount) {
+    const Offset_2 = OwnedHero[cp]/2;
+    const Byte_2 = (OwnedHero[cp]%2)*2;
+    var CurSh = dwread_epd(Epd_cp[cp] + 0x60/4);
+    wwrite_epd(EPD(0x660E00) + Offset_2, Byte_2, (CurSh + Amount)/256);
+    dwadd_epd(Epd_cp[cp] + 0x60/4, Amount);
+}
+function Player_Sh_Heal_Stand(cp, Amount, Offset, Byte) {
+    var sign;
+    if (Amount < 1000) {
+        sign = 1;
+        Amount = 1000 - Amount; // 음수 값으로 설정
+    } else {
+        Amount -= 1000;
+        // if (Stat_God_Life[cp]) Amount *= 2; //생명의권능 쉴젠 2배 양수일때만 적용
+    }
+    Amount *= 2;
+    var CurSh = dwread_epd(Epd_cp[cp] + 0x60/4);
+    var MaxSh = wread_epd(EPD(0x660E00) + Offset, Byte);
+    if (Amount < 256) {
+        Sh_Stack[cp] += Amount;
+        Amount = 0;
+    }
+    if (Sh_Stack[cp] > 256) {
+        Sh_Stack[cp] -= 256;
+        Amount += 256;
+    }
+    if (sign == 1) { //음수계산
+        if (CurSh < Amount) wwrite_epd(EPD(0x660E00) + Offset, Byte, 0); //더 적으면 0
+        else {
+            wwrite_epd(EPD(0x660E00) + Offset, Byte, (CurSh - Amount)*256);
+            dwsubtract_epd(Epd_cp[cp] + 0x60/4, Amount);
+        }
+        Visual_Sh[cp] = (CurSh - Amount)/256;
+    } else {
+        wwrite_epd(EPD(0x660E00) + Offset, Byte, (CurSh + Amount)/256);
+        dwadd_epd(Epd_cp[cp] + 0x60/4, Amount);
+        Visual_Sh[cp] = (CurSh + Amount)/256;
+    }
+}
+function Player_Sh_Heal_Other(cp, Amount) {
+    for (var i = 0; i < 3; i++) {
+        if (playerexist(i) && cp != i) { //서로 다른 플레이어만 힐
+            if (Epd_cp[i]) Player_Sh_Heal(cp, Amount);
+        }
+    }
+}
+function Player_HP_Heal(cp, Amount, OverHeal) {
+    const CurHp = dwread_epd(Epd_cp[cp] + 0x08/4);
+    const MaxHp = Stat_Hp[cp]*256;
+    Amount *= 256;
+    if (CurHp + Amount > MaxHp) {
+        dwwrite_epd(Epd_cp[cp] + 0x08/4, MaxHp);
+        if (OverHeal) Player_Sh_Heal(cp, MaxHp - CurHp);
+        return CurHp + Amount - MaxHp;
+    } else {
+        dwadd_epd(Epd_cp[cp] + 0x08/4, Amount);
+    }
+}
+function Player_HP_Heal_Percent(cp, Per, OverHeal) { //퍼센트 100배율
+    const CurHp = dwread_epd(Epd_cp[cp] + 0x08/4);
+    const MaxHp = Stat_Hp[cp]*256;
+    const Amount = MaxHp*Per/10000;
+    if (CurHp + Amount > MaxHp) {
+        dwwrite_epd(Epd_cp[cp] + 0x08/4, MaxHp);
+        if (OverHeal) Player_Sh_Heal(cp, MaxHp - CurHp);
+    } else {
+        dwadd_epd(Epd_cp[cp] + 0x08/4, Amount);
+    }
+}
+function Player_HP_Heal_Other(cp, Amount) {
+    for (var i = 0; i < 3; i++) {
+        if (playerexist(i) && cp != i) { //서로 다른 플레이어만 힐
+            if (Epd_cp[i]) Player_HP_Heal(cp, Amount, 0);
+        }
+    }
+}
+function Player_HP_Heal_Stand(cp, Amount) {
+    if (Amount < 1000) return; //재생력 스탯이 음수면 재생없음
+    else {
+        Amount -= 1000;
+        Amount *= 2;
+    }
+    if (Stat_God_Life[cp]) Amount *= 2; //생명의권능 체젠 2배
+    const CurHp = dwread_epd(Epd_cp[cp] + 0x08/4);
+    const MaxHp = Stat_Hp[cp]*256;
+    if (CurHp + Amount > MaxHp) {
+        dwwrite_epd(Epd_cp[cp] + 0x08/4, MaxHp);
+    } else {
+        dwadd_epd(Epd_cp[cp] + 0x08/4, Amount);
+    }
+}
+const GoldTimer = PVariable();
+function Player_GoldCreate(cp) {
+    if (GoldTimer[cp] == 0) {
+        GoldTimer[cp] = 5*24;
+        var Amount = Stat_Gc[cp];
+        var temp = 0;
+        if (Amount >= 100) { //양수일땐 생성
+            Amount = Amount - 100;
+        }
+        else if (Amount < 100) { //음수일땐 감소
+            temp = 1;
+            Amount = 100 - Amount;
+        }
+        if (temp) {
+            SetResources(cp, Subtract, Amount, Ore);
+        }
+        else {
+            SetResources(cp, Add, Amount, Ore);
+            GoldExp[cp] += Amount;
+        }
+    } else {
+        GoldTimer[cp] -= 1;
+    }
+}
+function Player_GetGold(cp, Amount, IsNeedGD) {
+    if (IsNeedGD) {
+        Amount = Amount * IsNeedGD / 100;
+    }
+    SetResources(cp, Add, Amount, Ore);
+    GoldExp[cp] += Amount;
+}
+const Targetloc = $L("Location 22");
+const DummyUnit = 204;
+// const Rune_LevelTimer = PVariable();
+// const Rune_RemoveTimer = PVariable();
+// const Rune_Remove_UnitId = 107;
+// const Rune_Remove_WeaponId = 8;
+//const LevelUpType = [SHP, SPM, SAM, SHR, SSH, SSM, SSR, SPA, SPD, SMD, SSD, SLD, SGD, SGC, SLU, SSU, SDC];
+/*function Player_RuneEffect(cp) {
+    //황금의 룬
+    if (Rune_LevelTimer[cp] == 0) {
+        Rune_LevelTimer[cp] = 5*24;
+        const Type = rand()%LevelUpType.length;
+        Set_Stat_permanent(cp, Type, Stat_Rune_Level[cp]);
+    } else {
+        Rune_LevelTimer[cp] -= 1;
+    }
+    //파괴의룬
+    if (Rune_RemoveTimer[cp] == 0) {
+        Rune_RemoveTimer[cp] = 2*24;
+        SetWeaponDamage(cp, Stat_Rune_Remove[cp], 100, Stat_Pa[cp], 0);
+        const x, y = GetPlayerPox(cp);
+        setloc(Targetloc, x, y);
+        TE.AttackGround(Targetloc, Targetloc, Rune_Remove_UnitId, DummyUnit, cp);
+    } else {
+        Rune_RemoveTimer[cp] -= 1;
+    }
+}*/
+function Player_LuckTest(cp, First_R, Base_R, Need_Small) { //First_R: 첫번째 확률 수치 Base_R: 기준 확률
+    var Chance = Stat_Lu[cp];
+    // 첫 번째 시도
+    if (rand() % 100 < Chance) {
+        const value = rand() % Base_R;
+        if (value > First_R && Need_Small == 0) First_R = value; //더 큰 값이 우선
+        else if (value < First_R && Need_Small == 1) First_R = value; //더 작은 값이 우선
+    }
+
+    // 100 초과 시 두 번째 시도
+    if (Chance > 100 && rand() % 100 < (Chance - 100)) {
+        const value = rand() % Base_R;
+        if (value > First_R && Need_Small == 0) First_R = value;
+        else if (value < First_R && Need_Small == 1) First_R = value;
+    }
+
+    return First_R;
+}
+const HP_Before = PVariable();
+function Player_HpWound(cp) {
+    const CurHp = dwread_epd(Epd_cp[cp] + 0x08/4);
+    if (CurHp < HP_Before[cp]) { //이전체력보다 현재체력이 더 낮다면
+        //보호의룬
+        const Amount = Stat_Rune_Shield[cp];
+        if (Amount > 0) Set_Stat_permanent(cp, SSH, Amount);
+    }
+    HP_Before[cp] = CurHp;
+}
+const ReviveTimer = PVariable();
+
+function Player_TimerCheck(cp) {
+    const InvinTimer = GetExtraDb(Epd_cp[cp], 1);
+    if (InvinTimer > 0) {
+        if (MemoryXEPD(Epd_cp[cp] + 0xDC/4, Exactly, 0, 0x4000000)) { //무적시간인데 무적 아니면 무적으로 바꾸기
+            SetMemoryXEPD(Epd_cp[cp] + 0xDC/4, SetTo, 0x4000000, 0x4000000);
+        }
+        ExtraSubDb(Epd_cp[cp], 1, 1);
+    }
+    else if (InvinTimer == 0) {
+        SetMemoryXEPD(Epd_cp[cp] + 0xDC/4, SetTo, 0, 0x4000000);
+    }
+}
+function Player_LifeBomb(cp) { //생력폭발 스탯 발동
+    var R = rand()%100;
+    R = Player_LuckTest(cp, R, 100, 1);
+    const Timer = GetExtraDb(Epd_cp[cp], 2);
+    if (Timer == 0) { //시간 체크
+        if (R < Stat_Lb[cp]) { //발동
+            Player_HP_Heal(cp, 15, 0);
+            if (OwnedHero[cp] == 5) {
+                Player_Sh_Heal(cp, 15*256/2); //불멸자라면 절반 수치만큼 쉴드도 회복
+            }
+        }
+        SetExtraDb(Epd_cp[cp], 2, 24);
+    } else {
+        ExtraSubDb(Epd_cp[cp], 2, 1);
+    }
+}
+function Player_StatCheck(cp) {
+    //피해입을 때 보호의 룬 발동
+    //Player_HpWound(cp);
+    //체력재생력
+    const epd = Epd_cp[cp];
+    Player_HP_Heal_Stand(cp, Stat_Hr[cp]);
+    //현재쉴드
+    const CurSh = dwread_epd(epd + 0x60/4)/256;
+    const Offset_2 = OwnedHero[cp]/2;
+    const Byte_2 = (OwnedHero[cp]%2)*2;
+    wwrite_epd(EPD(0x660E00) + Offset_2, Byte_2, CurSh);
+    Stat_Sh[cp] = CurSh;
+    //쉴드재생
+    Player_Sh_Heal_Stand(cp, Stat_Sr[cp], Offset_2, Byte_2);
+    //골드생성
+    Player_GoldCreate(cp);
+    //룬효과 발동
+    //Player_RuneEffect(cp);
+    //각종 타이머 체크
+    Player_TimerCheck(cp);
+    //생력폭발 체크
+    Player_LifeBomb(cp);
+}
+function Debuff_Remove(cp) {
+    if (bread_epd(Epd_cp[cp] + 0x118/4, 1) > 1) { //빙결 상태 초기화
+        bwrite_epd(Epd_cp[cp] + 0x118/4, 1, 1);
+    }
+    if (bread_epd(Epd_cp[cp] + 0x114/4, 2) > 1) { //둔화 상태 초기화
+        bwrite_epd(Epd_cp[cp] + 0x114/4, 2, 1);
+    }
+}
+function SkillCool_LuckCheck(cp, Ownedidx) {
+    var RW = rand()%100;
+    RW = Player_LuckTest(cp, RW, 100, 1);
+    const Timer = GetExtraDb(Epd_cp[cp], 4 + Ownedidx);
+    if (Timer == 0) {
+        if (RW < Stat_Da[cp]) {
+            return 1;
+        }
+    }
+    return 0;
+}
+function CostCalculation(cp, Cost) {
+    var Amount = 100;
+    if (Stat_Dc[cp] > 0) {
+        Amount -= Stat_Dc[cp];
+    }
+    return Cost * Amount / 100;
+}
+function Death_Avoid_Check(cp) {
+    var R = rand()%100;
+    R = Player_LuckTest(cp, R, 100, 1);
+    const Timer = GetExtraDb(Epd_cp[cp], 3);
+    if (Timer == 0) { //시간 체크
+        if (R < Stat_Lb[cp]) { //발동
+            const epd = Epd_cp[cp];
+            SetExtraDb(epd, 3, 20*24); //쿨타임
+            ExtraAddDb(epd, 1, 5*24); //무적시간 설정
+            bwrite_epd(epd + 0x4C/4, 1, 1); //사망명령 취소
+            dwwrite_epd(epd + 0x08/4, 1*256); //체력 최소치로 수정
+        }
+    }
+}
+function PlayerDeath(cp) {
+    //죽기 전에 사망회피 조건 확인
+    const temp = Death_Avoid_Check(cp);
+    if (!temp) { //사망회피 실패
+        ExtraDb_Reset(Epd_cp[cp]);
+        //유닛제거
+        KillUnit("Any unit", cp);
+        //부활 타이머 설정
+        ReviveTimer[cp] = 90*24;
+        //epd초기화
+        Epd_cp[cp] = 0;
+    }
+}
+function DeathTrigger(cp) {
+    //부활타이머 감소
+    if (ReviveTimer[cp] > 0) {
+        ReviveTimer[cp] -= 1;
+    }
+}
+
+
+/* 마우스 인식 */
+
+
+
+//Mouse Setting Option
+var readMode		= 1; //0이면 작동안함, 1이면 작동함
+var screenGridX		= 0; //화면 X좌표 (비공유)
+var screenGridY		= 0; //화면 Y좌표 (비공유)
+var screenSizeX		= 0; //화면X축 크기 (비공유)
+var screenSizeY		= 0; //화면Y축 크기 (비공유)
+var mouseX			= 0; //마우스 상대좌표X (비공유)
+var mouseY			= 0; //마우스 상대좌표Y (비공유)
+const mouseMX		= EPD(0x6CDDC4); //마우스 상대좌표X 오프셋
+const mouseMY		= EPD(0x6CDDC8); //마우스 상대좌표Y 오프셋
+//MSQC를 통해 공유화될 변수들
+const mouseClick	= PVariable(); //공유하된 마우스클릭상태
+const mouseClicked	= PVariable(); //공유하된 마우스클릭상태(꾹키)
+const mouseUserX	= PVariable(); //공유화된 마우스상대좌표X
+const mouseUserY	= PVariable(); //공유화된 마우스상대좌표Y
+const screenUserX	= PVariable(); //공유화된 화면X축 크기
+
+//기타 변수
+const textUpdate	= PVariable(); //텍스트의 갱신이 필요할 때만 갱신하기 위한 변수
+const colorL		= [Db(""), Db("\x1F")];
+
+function variableInit(){ //MSQC에서 사용하기 위해 변수등록(?)
+	EUDRegisterObjectToNamespace("readMode", readMode);
+	EUDRegisterObjectToNamespace("mouseClick", mouseClick);
+	EUDRegisterObjectToNamespace("mouseClicked", mouseClicked);
+	EUDRegisterObjectToNamespace("screenSizeX", screenSizeX);
+	EUDRegisterObjectToNamespace("mouseUserX", mouseUserX);
+	EUDRegisterObjectToNamespace("mouseUserY", mouseUserY);
+	EUDRegisterObjectToNamespace("screenUserX", screenUserX);
+}
+
+const checkscreenLoc = $L("checkScreen");
+function checkScreenMouse(){
+    if(IsUserCP()){
+        mouseX = dwread_epd(mouseMX);
+        mouseY = dwread_epd(mouseMY);
+        screenGridX = dwread_epd(EPD(0x62848C));
+        screenGridY = dwread_epd(EPD(0x6284A8));
+        setloc(checkscreenLoc, 128*16, 128*16); //중앙 (맵사이즈*16, 맵사이즈*16)
+        CenterView(checkscreenLoc);
+        const ScreenX2 = dwread_epd(EPD(0x62848C));
+        const ScreenY2 = dwread_epd(EPD(0x6284A8));
+        screenSizeX = 128*16 - ScreenX2;
+        screenSizeY = 128*16 - ScreenY2;
+        const screenX = screenGridX + screenSizeX;
+        const screenY = screenGridY + screenSizeY;
+        setloc(checkscreenLoc, screenX, screenY);
+        CenterView(checkscreenLoc);
+    }
+}

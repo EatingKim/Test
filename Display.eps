@@ -1,0 +1,249 @@
+import Skill as sq;
+import Shop as so;
+import System as sy;
+
+const s = StringBuffer(1024);
+const error = StringBuffer(218);
+const BugString = StringBuffer(1024);
+
+function ArrayPrint(temparray: EUDArray, Length, Printrow) {
+    BugString.insert(0);
+    for (var i = 0; i < Length; i++) {
+        if (i == Length-1) BugString.appendf("{}", temparray[i]);
+        else BugString.appendf("{}, ", temparray[i]);
+    }
+    BugString.DisplayAt(Printrow);
+}
+const Option_Sk_Detail = PVariable();
+
+var MusicOption = 1; //배경음 켜/끄기
+
+const ItemSize = 80;
+const CommonSize = 32;
+const RareSize = 19;
+const EpicSize = 18;
+const LegenderySize = 10;
+const ShopList = [EUDArray(5), EUDArray(5), EUDArray(5)]; //상점에 나올 아이템 인덱스배열
+function Display_Reset() {
+    s.insert(0);
+    s.append("\n");
+    s.append("\n");
+    s.append("\n");
+    s.append("\n");
+    s.append("\n");
+    s.append("\n");
+    s.append("\n");
+    s.append("\n");
+    s.append("\n");
+    s.append("\n");
+    s.append("\n");
+    s.DisplayAt(0);
+}
+
+function Display_LevelSetting(Page) {
+    s.insert(0); //난이도 선택
+    s.append("\x13\x19━━━━━━━━━━━━━━━━━━━━━━━━━");
+    s.append("\n");
+    s.append("\x13\x04난이도 선택");
+    s.append("\n");
+    s.append("\n");
+    if (Page == 1) {
+        s.append("\x13\x17[\x07Q\x17] \x07쉬움");
+    }
+    else {
+        s.append("\x13\x17[\x1EQ\x17] \x1E쉬움");
+    }
+    s.append("\n");
+    if (Page == 2) {
+        s.append("\x13\x17[\x07W\x17] \x07보통");
+    }
+    else {
+        s.append("\x13\x17[\x1EW\x17] \x1E보통");
+    }
+    s.append("\n");
+    if (Page == 3) {
+        s.append("\x13\x17[\x07E\x17] \x07어려움");
+    }
+    else {
+        s.append("\x13\x17[\x1EE\x17] \x1E어려움");
+    }
+    s.append("\n");
+    s.append("\n");
+    s.append("\x13\x19[\x1EY\x19] \x1E완료");
+    s.append("\n");
+    s.append("\x13\x19━━━━━━━━━━━━━━━━━━━━━━━━━");
+    s.DisplayAt(0);
+}
+function Display_LevelExplain(Page) {
+    //난이도표시
+    s.insert(0);
+    s.append("\n");
+    s.append("\n");
+    s.append("\x13\x19━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    s.append("\n");
+    if (Page == 1) {
+        s.append("\x13\x04난이도가 \x19\"\x08쉬움\x19\" \x04으로 설정되었습니다.\n");
+        s.append("\x13\x08적 체력-20% 공격력-1, 유닛제한-15% \x03골드 획득량+20% 부활시 체력 75%\n");
+        s.append("\x13\x04적 성장 체력+5%, 성장 공격력+1\n");
+    }
+    else if (Page == 2) {
+        s.append("\x13\x04난이도가 \x19\"\x08보통\x19\" \x04으로 설정되었습니다.\n");
+        s.append("\x13\x08적 체력+10% 공격력+1, 유닛제한+10% \x03골드 획득량+0% 부활시 체력 50%\n");
+        s.append("\x13\x04적 성장 체력+10%, 성장 공격력+2\n");
+    }
+    else if (Page == 3) {
+        s.append("\x13\x04난이도가 \x19\"\x08어려움\x19\" \x04으로 설정되었습니다.\n");
+        s.append("\x13\x08적 체력+50% 공격력+3, 유닛제한+25% \x03골드 획득량-10% 부활시 체력 25%\n");
+        s.append("\x13\x04적 성장 체력+25%, 성장 공격력+2\n");
+        }
+    s.append("\n");
+    s.append("\x13\x19━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    s.append("\n");
+    s.append("\n");
+    s.DisplayAt(0);
+}
+function Display_HeroInfo(Page) {
+    s.insert(0);
+    s.append("\n");
+    s.append("\n");
+    s.append("\x13\x19━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    if (Page == 0) { //전사
+        s.append("\x13\x08헤론\x04, 태산과도 같은 힘을 가졌지만 마음은 따듯한 전사이다.\n");
+        s.append("\x13\x07패시브 \x04전사의육체: 체력\x07+20\x04, 체력재생력 \x07+25\x04, 피해감소\x07+25\n");
+        s.append("\x13\x07주속성 \x11물리\n");
+        s.append("\x13\x07고유무기 \x03방패와검: \x072\x04칸 내의 적들에게 범위피해를 준 다음 사거리 \x074칸\x04내의 적에게 검격을 휘두릅니다.\n");
+    }
+    else if (Page == 1) { //사냥꾼
+        s.append("\x13\x08레스\x04, 사냥의 여신이다. 그녀의 발자취는 남겨지지 않는다고 한다.\n");
+        s.append("\x13\x07패시브 \x04신속: 체력\x08-20\x04, 물리공격력\x07+3\x04, 이동속도\x07+40%\n");
+        s.append("\x13\x07주속성 \x11물리\n");
+        s.append("\x13\x07고유무기 \x03탄성궁: \x046칸 내의 적에게 6번에 걸쳐 \x0816+1.6\x02(\x11물리\x02)\x04의 피해를 줍니다.\n");
+    }
+    else if (Page == 2) { //원소법사
+        s.append("\x13\x08네프림\x04, 모든 마법사들의 우상이며 매우 강력한 마력을 가졌다.\n");
+        s.append("\x13\x07패시브 \x04대마법사의 자질: 체력\x08-50\x04, 쉴드재생력\x07+10\x04, 마법무기의 마법계수가 \x071\x04씩 증가합니다.\n");
+        s.append("\x13\x07주속성 \x1F마법\n");
+        s.append("\x13\x07고유무기 \x03달빛스태프: \x0410칸 내의 적에게 \x0814+1.6\x02(\x1F마법\x02)\x04의 범위피해를 주는 파이어볼을 2회 시전합니다.\n");
+    }
+    else if (Page == 3) { //빙결법사
+        s.append("\x13\x08로이라\x04, 얼음에 특화된 마법사다. 냉정한 성격이며 말수가 적다.\n");
+        s.append("\x13\x07패시브 \x04얼음결정: 빙결상태인 적이 사망할 때 주변 적들에게 \x072+0.25\x02(\x1E마법\x02)\x04의 범위피해를 줍니다.\n");
+        s.append("\x13\x07주속성 \x1F마법\n");
+        s.append("\x13\x07고유무기 \x03고요한밤: \x04주변 범위에 서리파편을 날려보내 1초뒤 폭발하며 \x0712+0.6\x02(\x1E마법\x02)\x04의 피해를 주고 빙결시킵니다.\n");
+    }
+    else if (Page == 4) { //도박꾼
+        s.append("\x13\x08포츄너\x04, 도박이라면 빠지지 않는다. 남들과 다른 행운을 가진다.\n");
+        s.append("\x13\x07패시브 \x04운의 지배자: 모든 확률의 최대치와 기본값이 \x0710%\x04만큼 증가합니다. 확률조작 \x07+5%\n");
+        s.append("\x13\x07주속성 \x15행운\n");
+        s.append("\x13\x07고유무기 \x03데스티니: \x04무작위 방향으로 2회 튕겨져 나가는 주사위를 던져 \x0710+1\x02(\x15행운\x02)\x04의 범위피해를 줍니다.\n");
+    }
+    else if (Page == 5) { //불멸자
+        s.append("\x13\x08콜드펜\x04, 알 수 없는 행운이 죽음에서 지켜주는 자. 그는 전혀 깨닫지 못한다.\n");
+        s.append("\x13\x07패시브 \x04죽음거부: 생력폭발이 \x0750%\x04의 수치만큼의 쉴드또한 생성합니다. 생력폭발의 기본값과 최대치가 \x0725%\x04증가합니다.\n");
+        s.append("\x13\x07주속성 \x10행운\n");
+        s.append("\x13\x07고유무기 \x03영원의병: \x04무작위 적에게 \x0710+(모든확률스탯의합*0.8)\x04만큼 피해를 주고 10%만큼의 쉴드를 생성합니다.\n");
+    }
+    else if (Page == 6) { //차원 여행자
+        s.append("\x13\x08조마\x04, 차원을 넘나드는 자. 수 많은 영혼들을 부릴 수 있다.\n");
+        s.append("\x13\x07패시브 \x04또다른나: 소환 유닛이 죽으면 60%확률로 재소환합니다. 재소환된 유닛은 5초간 유지됩니다.\n");
+        s.append("\x13\x07주속성 \x10소환\n");
+        s.append("\x13\x07고유무기 \x03이그드라실: \x04타차원의 영혼을 소환합니다. 최대 4기까지 소환됩니다.\n");
+    }
+    s.append("\x13\x19━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");    
+    s.append("\n");
+    s.append("\n");
+    s.DisplayAt(0);
+
+}
+
+function Display_NotAffordable(cp) {
+    setcurpl(cp);
+    s.insert(0);
+    s.append("\x04실행할 수 없는 요청입니다.");
+    s.Display();
+}
+
+function Display_EmptyList(cp) {
+    setcurpl(cp);
+    s.insert(0);
+    s.append("\x04남아있는 무기가 없습니다.");
+    s.Display();
+}
+
+function Display_AlreadyBought(cp) {
+    setcurpl(cp);
+    s.insert(0);
+    s.append("\x04이미 구매한 제품입니다.");
+    s.Display();
+}
+
+function Display_NotEnoughGold(cp) {
+    setcurpl(cp);
+    s.insert(0);
+    s.append("\x04골드가 부족합니다.");
+    s.Display();
+}
+
+function Display_Successbuying(cp) {
+    setcurpl(cp);
+    s.insert(0);
+    s.append("\x04성공적으로 구매하였습니다.");
+    s.Display();
+}
+
+function Display_TreeCapping(cp) {
+    setcurpl(cp);
+    s.insert(0);
+    s.append("\x04다른 스킬트리를 이미 선택하였습니다.");
+    s.Display();
+}
+function Display_ShopReroll(cp) {
+    setcurpl(cp);
+    s.insert(0);
+    s.append("\x08※알림 \x04상점이 초기화되었습니다.");
+    s.Display();
+}
+function Display_MoreWheatGold(cp, Amount) {
+    setcurpl(cp);
+    s.insert(0);
+    s.append("\x08※알림 \x04밀의 기본 골드 획득량이 \x071%\x04증가하였습니다.\n");
+    s.appendf("\x04현재 증가량: \x07+{}%", Amount);
+    s.Display();
+}
+function Display_EnemyUpgrade() {
+    for (var cp = 0; cp < 3; cp++) {
+        if (playerexist(cp)) {
+            setcurpl(cp);
+            s.insert(0);
+            s.append("\x08※알림 \x04적의 더욱 강해집니다.");
+            s.Display();
+        }
+    }
+    setcurpl(3);
+}
+// function Display_GetShopExp(cp, Amount) {
+//     setcurpl(cp);
+//     s.insert(0);
+//     s.appendf("\x08※알림 \x04상점 경험치 \x07+{}", Amount);
+//     s.Display();
+// }
+function Display_ShopLevelUp(cp, Amount) {
+    setcurpl(cp);
+    s.insert(0);
+    s.appendf("\x08※알림 \x04상점이 \x07{}\x04LV로 레벨업 했습니다.", Amount);
+    s.Display();
+}
+
+function Game_ErrorLine_Display(cp) {
+    //에러 줄에 보여줄 정보: 상점레벨, 상점경험치
+    const Level = sy.Player_ShopLevel[cp];
+    const ReviveTimer = sy.ReviveTimer[cp];
+    error.insert(0);
+    if (ReviveTimer > 0) {
+        error.appendf("\x04상점레벨: \x07{}\x08Lv \x02| \x04상점경험치 \x07{}\x02/\x08{} \x02| \x04부활시간 \x07{}\x04초", Level, sy.Player_ShopExp[cp], sy.RequestExp[Level], ReviveTimer/24);
+    }
+    else {
+        error.appendf("\x04상점레벨: \x07{}\x08Lv \x02| \x04상점경험치 \x07{}\x02/\x08{} \x02| \x04골드타이머 \x07{}\x04초", Level, sy.Player_ShopExp[cp], sy.RequestExp[Level], sy.GoldTimer[cp]/24);
+    }
+    eprintf("{:t}", error.epd);
+}
